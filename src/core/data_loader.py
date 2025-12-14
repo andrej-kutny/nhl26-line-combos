@@ -90,6 +90,54 @@ class DataLoader:
         missing = [f for f in required_files if not (self.data_dir / f).exists()]
         if missing:
             raise FileNotFoundError(f"Missing required data files: {missing}")
+
+    @lru_cache(maxsize=1)
+    def _load_override_attributes(self) -> dict[int, dict]:
+        """
+        Load optional override attributes (sub_position, salary, ap) from a CSV.
+        
+        Expected columns:
+            id, sub_position, salary, ap
+        The file is optional; missing values are ignored.
+        """
+        override_path = self.data_dir / "player_attributes_override.csv"
+        if not override_path.exists():
+            return {}
+        
+        df = pd.read_csv(override_path)
+        mapping: dict[int, dict] = {}
+        for _, row in df.iterrows():
+            try:
+                pid = int(row["id"])
+            except Exception:
+                continue
+            entry: dict = {}
+            sub_pos = row.get("sub_position")
+            if isinstance(sub_pos, str) and sub_pos.strip():
+                entry["sub_position"] = sub_pos.strip().upper()
+            salary = row.get("salary")
+            if pd.notna(salary):
+                try:
+                    entry["salary"] = int(salary)
+                except Exception:
+                    pass
+            ap = row.get("ap")
+            if pd.notna(ap):
+                try:
+                    entry["ability_points"] = int(ap)
+                except Exception:
+                    pass
+            if entry:
+                mapping[pid] = entry
+        return mapping
+
+    def _apply_override(self, player) -> None:
+        """Apply override attributes to a player instance in-place."""
+        override = self._load_override_attributes().get(player.id)
+        if not override:
+            return
+        for key, value in override.items():
+            setattr(player, key, value)
     
     # =========================================================================
     # NAME LOOKUPS
@@ -146,12 +194,14 @@ class DataLoader:
                 id=skater_id,
                 first_name=first_name,
                 last_name=last_name,
+                sub_position=None,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
                 nationality=str(row["nationalitys"]).strip(),
                 league=str(row["leagues"]).strip(),
                 team=str(row["teams"]).strip(),
             )
+            self._apply_override(player)
             players.append(player)
         
         return players
@@ -175,12 +225,14 @@ class DataLoader:
                 id=skater_id,
                 first_name=first_name,
                 last_name=last_name,
+                sub_position=None,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
                 nationality=str(row["nationalitys"]).strip(),
                 league=str(row["leagues"]).strip(),
                 team=str(row["teams"]).strip(),
             )
+            self._apply_override(player)
             players.append(player)
         
         return players
@@ -204,12 +256,14 @@ class DataLoader:
                 id=goalie_id,
                 first_name=first_name,
                 last_name=last_name,
+                sub_position=None,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
                 nationality=str(row["nationalitys"]).strip(),
                 league=str(row["leagues"]).strip(),
                 team=str(row["teams"]).strip(),
             )
+            self._apply_override(player)
             players.append(player)
         
         return players
@@ -239,7 +293,12 @@ class DataLoader:
         Returns:
             List of ForwardLineCombo objects
         """
-        df = pd.read_csv(self.data_dir / "fwd_line_combos.csv")
+        path = self.data_dir / "fwd_line_combos_v3.csv"
+        if not path.exists():
+            path = self.data_dir / "fwd_line_combos_v2.csv"
+        if not path.exists():
+            path = self.data_dir / "fwd_line_combos.csv"
+        df = pd.read_csv(path)
         combos = []
         
         for idx, row in df.iterrows():
@@ -272,7 +331,12 @@ class DataLoader:
         Returns:
             List of DefenseLineCombo objects
         """
-        df = pd.read_csv(self.data_dir / "def_line_combos.csv")
+        path = self.data_dir / "def_line_combos_v3.csv"
+        if not path.exists():
+            path = self.data_dir / "def_line_combos_v2.csv"
+        if not path.exists():
+            path = self.data_dir / "def_line_combos.csv"
+        df = pd.read_csv(path)
         combos = []
         
         for idx, row in df.iterrows():
@@ -455,4 +519,3 @@ def get_data_loader(data_dir: str = "data/") -> DataLoader:
     if _data_loader is None:
         _data_loader = DataLoader(data_dir)
     return _data_loader
-

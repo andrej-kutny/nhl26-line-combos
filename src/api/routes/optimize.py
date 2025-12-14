@@ -395,8 +395,17 @@ class PlaceholderSolver(ASPSolverInterface):
 
 
 # Use placeholder for now - replace with real solver when ASP team implements it
-# solver = ASPSolver()  # Real implementation
-solver = PlaceholderSolver()  # Placeholder
+_solver_init_error: str | None = None
+_clingo_available: bool = False
+
+try:
+    from ...asp.solver import ASPSolver
+
+    _clingo_available = ASPSolver.is_available()
+    solver = ASPSolver() if _clingo_available else PlaceholderSolver()
+except Exception as e:
+    _solver_init_error = str(e)
+    solver = PlaceholderSolver()
 
 
 # =============================================================================
@@ -591,9 +600,8 @@ async def get_solver_status():
     Returns information about the solver implementation status.
     Useful for frontend to know which features are available.
     """
-    # Check if real solver is implemented
     is_placeholder = isinstance(solver, PlaceholderSolver)
-    
+
     return {
         "solver_type": "placeholder" if is_placeholder else "clingo",
         "features": {
@@ -603,9 +611,17 @@ async def get_solver_status():
             "validate": True,
         },
         "message": (
-            "Using placeholder solver. ASP team: implement src/asp/solver.py"
-            if is_placeholder
-            else "Clingo ASP solver active"
+            (
+                "Using placeholder solver (Clingo not available in this environment). "
+                "Install the `clingo` Python package to enable ASP optimization."
+            )
+            if is_placeholder and not _clingo_available
+            else (
+                "Using placeholder solver. ASP team: implement src/asp/solver.py"
+                if is_placeholder
+                else "Clingo ASP solver active"
+            )
         ),
+        "clingo_available": _clingo_available,
+        "init_error": _solver_init_error,
     }
-
