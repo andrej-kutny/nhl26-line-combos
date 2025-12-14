@@ -2,6 +2,8 @@
 
 This guide explains how to connect your frontend application to the API.
 
+**Target frontend**: Angular v21
+
 ## API Base URL
 
 ```
@@ -70,8 +72,8 @@ const forwards = await response.json();
 ### Search Players
 
 ```javascript
-// GET /players/search?q=gretzky
-const response = await fetch('http://localhost:8000/players/search?q=gretzky');
+// GET /players/search?q=gretzky&min_ovr=80&event=ICON
+const response = await fetch('http://localhost:8000/players/search?q=gretzky&min_ovr=80&event=ICON');
 const results = await response.json();
 
 // Response: Array of {player, position}
@@ -81,6 +83,22 @@ const results = await response.json();
     "position": "FWD"
   }
 ]
+```
+
+### Dropdown / Autocomplete (Recommended)
+
+Use `/players/lookup` to build dynamic dropdowns that match your UX requirement:
+- card mode label: `"{First} {Last} {OVR} - {EVENT} - {Position}"`
+- player mode label: `"{First} {Last} *"`
+
+```javascript
+// Card-level options (choose by card_id)
+// GET /players/lookup?q=gretzky&mode=card&position=FWD
+const cards = await fetch('http://localhost:8000/players/lookup?q=gretzky&mode=card&position=FWD').then(r => r.json());
+
+// Player-level options (choose by player_id wildcard)
+// GET /players/lookup?q=gretzky&mode=player
+const players = await fetch('http://localhost:8000/players/lookup?q=gretzky&mode=player').then(r => r.json());
 ```
 
 ### Get Line Combinations
@@ -221,12 +239,28 @@ interface Player {
   id: number;
   first_name: string;
   last_name: string;
+  card_id?: string | null;
+  card_img?: string | null;
+  card_position?: string | null;
+  salary?: number | null;
   event: string;
   overall: number;
   nationality: string;
   league: string;
   team: string;
   position: 'FWD' | 'DEF' | 'G';
+}
+
+interface LookupOption {
+  value: string | number;
+  value_type: 'card_id' | 'player_id';
+  player_id: number;
+  card_id?: string | null;
+  position: 'FWD' | 'DEF' | 'G';
+  overall: number;
+  event: string;
+  card_position?: string | null;
+  label: string;
 }
 
 interface ComboCondition {
@@ -287,152 +321,27 @@ interface OptimizationResponse {
 }
 ```
 
-## React Example
+## Angular example (HttpClient)
 
-```jsx
-import { useState, useEffect } from 'react';
+```typescript
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable } from '@angular/core';
 
-const API_BASE = 'http://localhost:8000';
+@Injectable({ providedIn: 'root' })
+export class NhlApi {
+  private readonly baseUrl = 'http://localhost:8000';
 
-function LineOptimizer() {
-  const [constraints, setConstraints] = useState({
-    min_ovr: 80,
-    excluded_player_ids: [],
-  });
-  const [solutions, setSolutions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  constructor(private readonly http: HttpClient) {}
 
-  const optimize = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/optimize/forward-line`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          constraints,
-          optimization_target: 'ovr',
-          num_solutions: 5,
-        }),
-      });
-      const data = await response.json();
-      setSolutions(data.solutions);
-    } catch (error) {
-      console.error('Optimization failed:', error);
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div>
-      <h1>NHL 26 Line Optimizer</h1>
-      
-      <div>
-        <label>
-          Min OVR:
-          <input
-            type="range"
-            min="70"
-            max="95"
-            value={constraints.min_ovr}
-            onChange={(e) => setConstraints({ ...constraints, min_ovr: +e.target.value })}
-          />
-          {constraints.min_ovr}
-        </label>
-      </div>
-      
-      <button onClick={optimize} disabled={loading}>
-        {loading ? 'Optimizing...' : 'Find Optimal Line'}
-      </button>
-      
-      {solutions.map((sol) => (
-        <div key={sol.rank} className="solution">
-          <h3>Solution #{sol.rank}</h3>
-          <p>Effective OVR: {sol.effective_ovr} (Base: {sol.total_base_ovr} + Bonus: {sol.ovr_bonus})</p>
-          <ul>
-            {sol.players.map((p) => (
-              <li key={p.id}>
-                {p.first_name} {p.last_name} - OVR {p.overall} ({p.team})
-              </li>
-            ))}
-          </ul>
-          {sol.active_combos.length > 0 && (
-            <div>
-              <strong>Active Combos:</strong>
-              <ul>
-                {sol.active_combos.map((c) => (
-                  <li key={c.id}>+{c.reward_amount} {c.reward_type}: {c.description}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export default LineOptimizer;
-```
-
-## Vue Example
-
-```vue
-<script setup>
-import { ref } from 'vue';
-
-const API_BASE = 'http://localhost:8000';
-
-const minOvr = ref(80);
-const solutions = ref([]);
-const loading = ref(false);
-
-async function optimize() {
-  loading.value = true;
-  try {
-    const response = await fetch(`${API_BASE}/optimize/forward-line`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        constraints: { min_ovr: minOvr.value },
-        optimization_target: 'ovr',
-        num_solutions: 5,
-      }),
-    });
-    const data = await response.json();
-    solutions.value = data.solutions;
-  } catch (error) {
-    console.error('Optimization failed:', error);
+  lookupPlayers(q: string, mode: 'card' | 'player' = 'card') {
+    const params = new HttpParams().set('q', q).set('mode', mode);
+    return this.http.get(`${this.baseUrl}/players/lookup`, { params });
   }
-  loading.value = false;
-}
-</script>
 
-<template>
-  <div>
-    <h1>NHL 26 Line Optimizer</h1>
-    
-    <div>
-      <label>
-        Min OVR: {{ minOvr }}
-        <input type="range" v-model.number="minOvr" min="70" max="95" />
-      </label>
-    </div>
-    
-    <button @click="optimize" :disabled="loading">
-      {{ loading ? 'Optimizing...' : 'Find Optimal Line' }}
-    </button>
-    
-    <div v-for="sol in solutions" :key="sol.rank" class="solution">
-      <h3>Solution #{{ sol.rank }}</h3>
-      <p>Effective OVR: {{ sol.effective_ovr }}</p>
-      <ul>
-        <li v-for="p in sol.players" :key="p.id">
-          {{ p.first_name }} {{ p.last_name }} - OVR {{ p.overall }}
-        </li>
-      </ul>
-    </div>
-  </div>
-</template>
+  optimizeForwardLine(body: unknown) {
+    return this.http.post(`${this.baseUrl}/optimize/forward-line`, body);
+  }
+}
 ```
 
 ## Error Handling

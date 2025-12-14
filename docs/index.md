@@ -30,7 +30,7 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                              FRONTEND                                    │
-│                         (Technology TBD)                                 │
+│                           (Angular v21)                                  │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │ HTTP/REST
                                  ▼
@@ -49,6 +49,8 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 │   models        │    │   solver        │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
+
+**Planned**: migrate the Data Layer to **SQLite** (seeded from `data/*.csv`) to support fast search/autocomplete and richer filtering.
 
 ## 📁 Project Structure
 
