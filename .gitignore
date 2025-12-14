@@ -67,3 +67,5 @@ logs/
 *.lp.bak
 src/asp/generated/
 
+# Line combo / Player images
+data/img/
