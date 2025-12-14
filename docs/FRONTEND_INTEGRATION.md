@@ -248,7 +248,7 @@ interface OptimizationConstraints {
   max_salary?: number | null;
   max_ap?: number | null;
   require_center?: boolean;
-  excluded_player_ids?: number[];
+  excluded_player_ids?: string[];
   required_team?: string | null;
   required_nationality?: string | null;
   required_event?: string | null;
@@ -485,4 +485,3 @@ Contact the API team for:
 - New endpoints
 - Data format changes
 - Authentication requirements
-

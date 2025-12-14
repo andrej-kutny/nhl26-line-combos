@@ -241,15 +241,21 @@ class ASPSolver:
 
         player_map = {}
         for p in players:
-            existing = player_map.get(p.id)
-            if existing is None or p.overall > existing.overall:
-                player_map[p.id] = p
+            # Allow lookup by either card_id or player_id
+            keys = [str(p.id)]
+            if p.player_id is not None:
+                keys.append(str(p.player_id))
+            for key in keys:
+                existing = player_map.get(key)
+                if existing is None or p.overall > existing.overall:
+                    player_map[key] = p
 
         selected = []
         for pid in player_ids:
-            if pid not in player_map:
+            pid_key = str(pid)
+            if pid_key not in player_map:
                 return {"valid": False, "error": f"Player ID not found: {pid}"}
-            selected.append(player_map[pid])
+            selected.append(player_map[pid_key])
 
         active = []
         for combo in combos:
@@ -297,11 +303,12 @@ class ASPSolver:
     @staticmethod
     def _dedupe_best_card_per_player(players: list) -> list:
         """Keep only the highest-OVR row per player ID."""
-        best: dict[int, object] = {}
+        best: dict[object, object] = {}
         for p in players:
-            existing = best.get(p.id)
+            key = p.player_id if p.player_id is not None else p.id
+            existing = best.get(key)
             if existing is None or p.overall > existing.overall:
-                best[p.id] = p
+                best[key] = p
         return list(best.values())
 
     def _select_candidates(self, players: list, combos: list) -> list:
@@ -317,19 +324,19 @@ class ASPSolver:
             return players
 
         players_sorted = sorted(players, key=lambda p: p.overall, reverse=True)
-        selected_ids: set[int] = set()
+        selected_ids: set[str] = set()
 
         for p in players_sorted[: self.max_candidates_global]:
-            selected_ids.add(p.id)
+            selected_ids.add(str(p.id))
 
         for combo in combos:
             for cond in combo.get_conditions():
                 matching = [p for p in players if p.matches_condition(cond.type, cond.key)]
                 matching.sort(key=lambda p: p.overall, reverse=True)
                 for p in matching[: self.max_candidates_per_condition]:
-                    selected_ids.add(p.id)
+                    selected_ids.add(str(p.id))
 
-        selected = [p for p in players_sorted if p.id in selected_ids]
+        selected = [p for p in players_sorted if str(p.id) in selected_ids]
         if len(selected) > self.max_candidates_total:
             selected = selected[: self.max_candidates_total]
         return selected
@@ -338,6 +345,21 @@ class ASPSolver:
     def _read_rules(filename: str) -> str:
         path = Path(__file__).parent / "rules" / filename
         return path.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _symbol_value(sym):
+        """
+        Extract a Python value from a clingo Symbol (supports numbers and strings).
+        """
+        try:
+            return sym.number
+        except Exception:
+            pass
+        try:
+            return sym.string
+        except Exception:
+            pass
+        return str(sym)
 
     @staticmethod
     def _clingo_str(value: str) -> str:
@@ -357,12 +379,14 @@ class ASPSolver:
         for p in players:
             lines.append(
                 "player("
-                f"{p.id}, {p.overall}, "
+                f"{self._clingo_str(str(p.id))}, {p.overall}, "
                 f"{self._clingo_str(str(p.team).lower())}, "
                 f"{self._clingo_str(str(p.nationality).lower())}, "
                 f"{self._clingo_str(str(p.event).lower())}"
                 ")."
             )
+            if p.player_id is not None:
+                lines.append(f"card_player({self._clingo_str(str(p.id))}, {int(p.player_id)}).")
 
         if is_forward:
             for c in combos:
@@ -390,7 +414,7 @@ class ASPSolver:
             lines.append(f"min_ovr({constraints.min_ovr}).")
 
         for pid in constraints.excluded_player_ids:
-            lines.append(f"excluded({pid}).")
+            lines.append(f"excluded({self._clingo_str(str(pid))}).")
 
         if constraints.required_team:
             lines.append(f"required_team({self._clingo_str(constraints.required_team.lower())}).")
@@ -406,11 +430,11 @@ class ASPSolver:
 
         for p in players:
             if p.sub_position:
-                lines.append(f"sub_pos({p.id}, {self._clingo_str(p.sub_position.lower())}).")
+                lines.append(f"sub_pos({self._clingo_str(str(p.id))}, {self._clingo_str(p.sub_position.lower())}).")
             if p.salary is not None:
-                lines.append(f"salary({p.id}, {p.salary}).")
+                lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
             if p.ability_points is not None:
-                lines.append(f"ap({p.id}, {p.ability_points}).")
+                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
 
         return "\n".join(lines)
 
@@ -430,49 +454,55 @@ class ASPSolver:
         for p in forwards:
             lines.append(
                 "player("
-                f"{p.id}, {p.overall}, "
+                f"{self._clingo_str(str(p.id))}, {p.overall}, "
                 f"{self._clingo_str(str(p.team).lower())}, "
                 f"{self._clingo_str(str(p.nationality).lower())}, "
                 f"{self._clingo_str(str(p.event).lower())}"
                 ")."
             )
-            lines.append(f"forward({p.id}).")
+            lines.append(f"forward({self._clingo_str(str(p.id))}).")
+            if p.player_id is not None:
+                lines.append(f"card_player({self._clingo_str(str(p.id))}, {int(p.player_id)}).")
             if p.sub_position:
-                lines.append(f"sub_pos({p.id}, {self._clingo_str(p.sub_position.lower())}).")
+                lines.append(f"sub_pos({self._clingo_str(str(p.id))}, {self._clingo_str(p.sub_position.lower())}).")
             if p.salary is not None:
-                lines.append(f"salary({p.id}, {p.salary}).")
+                lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
             if p.ability_points is not None:
-                lines.append(f"ap({p.id}, {p.ability_points}).")
+                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
 
         for p in defense:
             lines.append(
                 "player("
-                f"{p.id}, {p.overall}, "
+                f"{self._clingo_str(str(p.id))}, {p.overall}, "
                 f"{self._clingo_str(str(p.team).lower())}, "
                 f"{self._clingo_str(str(p.nationality).lower())}, "
                 f"{self._clingo_str(str(p.event).lower())}"
                 ")."
             )
-            lines.append(f"defense_player({p.id}).")
+            lines.append(f"defense_player({self._clingo_str(str(p.id))}).")
+            if p.player_id is not None:
+                lines.append(f"card_player({self._clingo_str(str(p.id))}, {int(p.player_id)}).")
             if p.salary is not None:
-                lines.append(f"salary({p.id}, {p.salary}).")
+                lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
             if p.ability_points is not None:
-                lines.append(f"ap({p.id}, {p.ability_points}).")
+                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
 
         for p in goalies:
             lines.append(
                 "player("
-                f"{p.id}, {p.overall}, "
+                f"{self._clingo_str(str(p.id))}, {p.overall}, "
                 f"{self._clingo_str(str(p.team).lower())}, "
                 f"{self._clingo_str(str(p.nationality).lower())}, "
                 f"{self._clingo_str(str(p.event).lower())}"
                 ")."
             )
-            lines.append(f"goalie({p.id}).")
+            lines.append(f"goalie({self._clingo_str(str(p.id))}).")
+            if p.player_id is not None:
+                lines.append(f"card_player({self._clingo_str(str(p.id))}, {int(p.player_id)}).")
             if p.salary is not None:
-                lines.append(f"salary({p.id}, {p.salary}).")
+                lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
             if p.ability_points is not None:
-                lines.append(f"ap({p.id}, {p.ability_points}).")
+                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
 
         # Combo facts
         for c in fwd_combos:
@@ -498,7 +528,7 @@ class ASPSolver:
         if constraints.min_ovr > 0:
             lines.append(f"min_ovr({constraints.min_ovr}).")
         for pid in constraints.excluded_player_ids:
-            lines.append(f"excluded({pid}).")
+            lines.append(f"excluded({self._clingo_str(str(pid))}).")
         if constraints.required_team:
             lines.append(f"required_team({self._clingo_str(constraints.required_team.lower())}).")
         if constraints.required_nationality:
@@ -551,7 +581,7 @@ class ASPSolver:
         expected_slots: tuple[int, ...],
         rank: int,
     ) -> LineSolution:
-        player_map = {p.id: p for p in players}
+        player_map = {str(p.id): p for p in players}
         combo_map = {c.id: c for c in combos}
 
         selected_by_slot: dict[int, Player] = {}
@@ -568,12 +598,14 @@ class ASPSolver:
             args = atom.arguments
 
             if name == "select":
-                pid = args[0].number
-                slot = args[1].number
-                if pid in player_map:
-                    p = player_map[pid]
+                pid = self._symbol_value(args[0])
+                slot = self._symbol_value(args[1])
+                pid_key = str(pid)
+                if pid_key in player_map:
+                    p = player_map[pid_key]
                     selected_by_slot[slot] = Player(
-                        id=p.id,
+                        id=str(p.id),
+                        player_id=p.player_id,
                         first_name=p.first_name,
                         last_name=p.last_name,
                         event=p.event,
@@ -585,7 +617,7 @@ class ASPSolver:
                     )
 
             elif name == "combo_active":
-                cid = args[0].number
+                cid = self._symbol_value(args[0])
                 if cid in combo_map:
                     c = combo_map[cid]
                     active_combos.append(
@@ -598,18 +630,18 @@ class ASPSolver:
                     )
 
             elif name == "total_base_ovr":
-                total_base_ovr = args[0].number
+                total_base_ovr = self._symbol_value(args[0])
 
             elif name == "total_ovr_bonus":
-                total_ovr_bonus = args[0].number
+                total_ovr_bonus = self._symbol_value(args[0])
             elif name == "total_salary":
-                total_salary = args[0].number
+                total_salary = self._symbol_value(args[0])
             elif name == "total_salary_bonus":
-                total_salary_bonus = args[0].number
+                total_salary_bonus = self._symbol_value(args[0])
             elif name == "total_ap":
-                total_ap = args[0].number
+                total_ap = self._symbol_value(args[0])
             elif name == "total_ap_bonus":
-                total_ap_bonus = args[0].number
+                total_ap_bonus = self._symbol_value(args[0])
 
         ordered_players = [selected_by_slot[s] for s in expected_slots if s in selected_by_slot]
 
@@ -659,7 +691,7 @@ class ASPSolver:
         def_combos: list,
         rank: int,
     ) -> LineSolution:
-        player_map = {p.id: p for p in forwards + defense + goalies}
+        player_map = {str(p.id): p for p in forwards + defense + goalies}
         fwd_combo_map = {c.id: c for c in fwd_combos}
         def_combo_map = {c.id: c for c in def_combos}
 
@@ -677,8 +709,8 @@ class ASPSolver:
             args = atom.arguments
 
             if name == "select":
-                pid = args[0].number
-                slot = args[1].number
+                pid = self._symbol_value(args[0])
+                slot = self._symbol_value(args[1])
                 pos = (
                     Position.FORWARD
                     if slot <= 12
@@ -686,10 +718,12 @@ class ASPSolver:
                     if slot <= 18
                     else Position.GOALIE
                 )
-                if pid in player_map:
-                    p = player_map[pid]
+                pid_key = str(pid)
+                if pid_key in player_map:
+                    p = player_map[pid_key]
                     selected_by_slot[slot] = Player(
-                        id=p.id,
+                        id=str(p.id),
+                        player_id=p.player_id,
                         first_name=p.first_name,
                         last_name=p.last_name,
                         event=p.event,
@@ -701,7 +735,7 @@ class ASPSolver:
                     )
 
             elif name in ("combo_active", "combo_active_fwd", "combo_active_def"):
-                cid = args[0].number
+                cid = self._symbol_value(args[0])
                 combo = fwd_combo_map.get(cid) or def_combo_map.get(cid)
                 if combo:
                     active_combos.append(
@@ -714,18 +748,18 @@ class ASPSolver:
                     )
 
             elif name == "total_base_ovr":
-                total_base_ovr = args[0].number
+                total_base_ovr = self._symbol_value(args[0])
 
             elif name == "total_ovr_bonus":
-                total_ovr_bonus = args[0].number
+                total_ovr_bonus = self._symbol_value(args[0])
             elif name == "total_salary":
-                total_salary = args[0].number
+                total_salary = self._symbol_value(args[0])
             elif name == "total_salary_bonus":
-                total_salary_bonus = args[0].number
+                total_salary_bonus = self._symbol_value(args[0])
             elif name == "total_ap":
-                total_ap = args[0].number
+                total_ap = self._symbol_value(args[0])
             elif name == "total_ap_bonus":
-                total_ap_bonus = args[0].number
+                total_ap_bonus = self._symbol_value(args[0])
 
         ordered_players = [p for _, p in sorted(selected_by_slot.items(), key=lambda x: x[0])]
 

@@ -177,7 +177,7 @@ User-defined constraints for optimization.
 | `max_salary` | int? | null | Maximum total salary |
 | `max_ap` | int? | null | Maximum ability points |
 | `require_center` | bool | false | Require at least one center |
-| `excluded_player_ids` | list[int] | [] | Player IDs to exclude |
+| `excluded_player_ids` | list[str] | [] | Card IDs (UUID strings) to exclude explicitly |
 | `required_team` | str? | null | All players must be from this team |
 | `required_nationality` | str? | null | All players must have this nationality |
 | `required_event` | str? | null | All players must be from this event |
@@ -188,7 +188,7 @@ User-defined constraints for optimization.
   "max_salary": 30000000,
   "max_ap": 9,
   "require_center": true,
-  "excluded_player_ids": [2029, 1063],
+  "excluded_player_ids": ["54e334c5-8d65-40b6-a67a-0e8039785781"],
   "required_team": null,
   "required_nationality": "CANADA",
   "required_event": null
@@ -332,4 +332,3 @@ Invalid requests return HTTP 422 with validation errors.
 
 - [Architecture](ARCHITECTURE.md) - System overview
 - [ASP Integration](ASP_INTEGRATION.md) - Using models in ASP
-

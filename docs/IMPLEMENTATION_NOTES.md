@@ -28,9 +28,14 @@ Optimization targets and constraints
 
 API quick-checks (venv311)
 --------------------------
-- Forward line: `POST /optimize/forward-line` with e.g. `{min_ovr:86, require_center:true, max_salary:110, max_ap:26}` → 1 solution in tests.
+- Forward line: `POST /optimize/forward-line` with e.g. `{min_ovr:86, require_center:true, max_salary:110, max_ap:26}` → 1 solution in tests (use `card_id` strings for exclusions if needed).
 - Defense pair: `POST /optimize/defense-pair` with e.g. `{min_ovr:84, max_salary:110, max_ap:26}` → 1 solution in tests.
 - Full team: `POST /optimize/full-team` with e.g. `{min_ovr:82, max_salary:110, max_ap:26}` → 1 solution (20 players, effective OVR ~1764) with current pruning.
+
+Combo activation sanity check
+-----------------------------
+- Script: `python -m scripts.check_combo_activation` prints how many forward/defense combos can currently activate with the loaded dataset.
+- Current state with scraped v3 combos vs extended dataset: 18/68 forward, 27/71 defense activate (because many `type=CARD` keys don’t map to our `card_id` UUIDs). Once matching combo files arrive, rerun the script to verify higher activation rates and re-test the API.
 
 Known limitations / next swaps
 ------------------------------

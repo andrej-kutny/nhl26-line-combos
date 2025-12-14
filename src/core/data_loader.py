@@ -92,7 +92,7 @@ class DataLoader:
             raise FileNotFoundError(f"Missing required data files: {missing}")
 
     @lru_cache(maxsize=1)
-    def _load_override_attributes(self) -> dict[int, dict]:
+    def _load_override_attributes(self) -> dict[str, dict]:
         """
         Load optional override attributes (sub_position, salary, ap) from a CSV.
         
@@ -105,11 +105,13 @@ class DataLoader:
             return {}
         
         df = pd.read_csv(override_path)
-        mapping: dict[int, dict] = {}
+        mapping: dict[str, dict] = {}
         for _, row in df.iterrows():
-            try:
-                pid = int(row["id"])
-            except Exception:
+            pid_raw = row.get("id")
+            if pd.isna(pid_raw):
+                continue
+            pid = str(pid_raw).strip()
+            if not pid:
                 continue
             entry: dict = {}
             sub_pos = row.get("sub_position")
@@ -148,7 +150,7 @@ class DataLoader:
         """Load skater names (forwards + defense) into a lookup dict."""
         df = pd.read_csv(self.data_dir / "skater_id.csv")
         return {
-            row["ID"]: (row["First name"], row["Second name"])
+            int(row["player_id"]): (row["First name"], row["Second name"])
             for _, row in df.iterrows()
         }
     
@@ -157,7 +159,7 @@ class DataLoader:
         """Load goalie names into a lookup dict."""
         df = pd.read_csv(self.data_dir / "g_id.csv")
         return {
-            row["ID"]: (row["First name"], row["Second name"])
+            int(row["player_id"]): (row["First name"], row["Second name"])
             for _, row in df.iterrows()
         }
     
@@ -187,19 +189,24 @@ class DataLoader:
         players = []
         
         for _, row in df.iterrows():
-            skater_id = int(row["Skater ID"])
-            first_name, last_name = self._get_skater_name(skater_id)
-            
+            player_id = int(row["player_id"])
+            first_name, last_name = self._get_skater_name(player_id)
+            salary_val = row.get("salary")
+            salary = int(salary_val) if pd.notna(salary_val) else None
+
             player = ForwardPlayer(
-                id=skater_id,
+                id=str(row["card_id"]).strip(),
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
-                sub_position=None,
+                sub_position=str(row.get("position", "")).strip().upper() or None,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                nationality=str(row["nationality"]).strip(),
+                league=str(row["league"]).strip(),
+                team=str(row["team"]).strip(),
+                salary=salary,
+                ability_points=None,
             )
             self._apply_override(player)
             players.append(player)
@@ -218,19 +225,24 @@ class DataLoader:
         players = []
         
         for _, row in df.iterrows():
-            skater_id = int(row["Skater ID"])
-            first_name, last_name = self._get_skater_name(skater_id)
-            
+            player_id = int(row["player_id"])
+            first_name, last_name = self._get_skater_name(player_id)
+            salary_val = row.get("salary")
+            salary = int(salary_val) if pd.notna(salary_val) else None
+
             player = DefensePlayer(
-                id=skater_id,
+                id=str(row["card_id"]).strip(),
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
-                sub_position=None,
+                sub_position=str(row.get("position", "")).strip().upper() or None,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                nationality=str(row["nationality"]).strip(),
+                league=str(row["league"]).strip(),
+                team=str(row["team"]).strip(),
+                salary=salary,
+                ability_points=None,
             )
             self._apply_override(player)
             players.append(player)
@@ -249,19 +261,24 @@ class DataLoader:
         players = []
         
         for _, row in df.iterrows():
-            goalie_id = int(row["Goalie ID"])
-            first_name, last_name = self._get_goalie_name(goalie_id)
-            
+            player_id = int(row["player_id"])
+            first_name, last_name = self._get_goalie_name(player_id)
+            salary_val = row.get("salary")
+            salary = int(salary_val) if pd.notna(salary_val) else None
+
             player = Goalie(
-                id=goalie_id,
+                id=str(row["card_id"]).strip(),
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
                 sub_position=None,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                nationality=str(row["nationality"]).strip(),
+                league=str(row["league"]).strip(),
+                team=str(row["team"]).strip(),
+                salary=salary,
+                ability_points=None,
             )
             self._apply_override(player)
             players.append(player)
@@ -300,23 +317,31 @@ class DataLoader:
             path = self.data_dir / "fwd_line_combos.csv"
         df = pd.read_csv(path)
         combos = []
+
+        def _clean(val: object) -> str:
+            return "" if pd.isna(val) else str(val).strip()
         
         for idx, row in df.iterrows():
+            t1, k1 = _clean(row.get("type1")).lower(), _clean(row.get("key1")).upper()
+            t2, k2 = _clean(row.get("type2")).lower(), _clean(row.get("key2")).upper()
+            t3, k3 = _clean(row.get("type3")).lower(), _clean(row.get("key3")).upper()
+            if not (t1 and k1 and t2 and k2 and t3 and k3):
+                continue
             combo = ForwardLineCombo(
                 id=idx,
                 reward_amount=int(row["reward_amount"]),
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
-                    type=str(row["type1"]).lower(),
-                    key=str(row["key1"]).upper(),
+                    type=t1,
+                    key=k1,
                 ),
                 condition2=ComboCondition(
-                    type=str(row["type2"]).lower(),
-                    key=str(row["key2"]).upper(),
+                    type=t2,
+                    key=k2,
                 ),
                 condition3=ComboCondition(
-                    type=str(row["type3"]).lower(),
-                    key=str(row["key3"]).upper(),
+                    type=t3,
+                    key=k3,
                 ),
             )
             combos.append(combo)
@@ -338,19 +363,26 @@ class DataLoader:
             path = self.data_dir / "def_line_combos.csv"
         df = pd.read_csv(path)
         combos = []
+
+        def _clean(val: object) -> str:
+            return "" if pd.isna(val) else str(val).strip()
         
         for idx, row in df.iterrows():
+            t1, k1 = _clean(row.get("type1")).lower(), _clean(row.get("key1")).upper()
+            t2, k2 = _clean(row.get("type2")).lower(), _clean(row.get("key2")).upper()
+            if not (t1 and k1 and t2 and k2):
+                continue
             combo = DefenseLineCombo(
                 id=idx,
                 reward_amount=int(row["reward_amount"]),
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
-                    type=str(row["type1"]).lower(),
-                    key=str(row["key1"]).upper(),
+                    type=t1,
+                    key=k1,
                 ),
                 condition2=ComboCondition(
-                    type=str(row["type2"]).lower(),
-                    key=str(row["key2"]).upper(),
+                    type=t2,
+                    key=k2,
                 ),
             )
             combos.append(combo)
@@ -380,7 +412,7 @@ class DataLoader:
         team: Optional[str] = None,
         nationality: Optional[str] = None,
         event: Optional[str] = None,
-        excluded_ids: Optional[list[int]] = None,
+        excluded_ids: Optional[list[str]] = None,
     ) -> list:
         """
         Filter a list of players by various criteria.
@@ -399,13 +431,13 @@ class DataLoader:
         Returns:
             Filtered list of players
         """
-        excluded_ids = excluded_ids or []
+        excluded_ids = set(str(e) for e in (excluded_ids or []))
         
         filtered = []
         for player in players:
             if player.overall < min_ovr:
                 continue
-            if player.id in excluded_ids:
+            if str(player.id) in excluded_ids:
                 continue
             if team and player.team.upper() != team.upper():
                 continue
@@ -475,9 +507,9 @@ class DataLoader:
                 "total": len(forwards) + len(defense) + len(goalies),
             },
             "unique_players": {
-                "forwards": len(set(p.id for p in forwards)),
-                "defense": len(set(p.id for p in defense)),
-                "goalies": len(set(p.id for p in goalies)),
+                "forwards": len(set(p.player_id or p.id for p in forwards)),
+                "defense": len(set(p.player_id or p.id for p in defense)),
+                "goalies": len(set(p.player_id or p.id for p in goalies)),
             },
             "combos": {
                 "forward_combos": len(fwd_combos),

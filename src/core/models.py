@@ -50,7 +50,10 @@ class ConditionType(str, Enum):
 
 class PlayerBase(BaseModel):
     """Base model for all player types."""
-    id: int = Field(..., description="Unique player ID")
+    id: str = Field(..., description="Unique card ID (card_id from dataset)")
+    player_id: Optional[int] = Field(
+        default=None, description="Underlying player identifier; used to avoid duplicates"
+    )
     first_name: str = Field("", description="Player's first name")
     last_name: str = Field("", description="Player's last name")
     sub_position: Optional[str] = Field(
@@ -189,7 +192,9 @@ class OptimizationConstraints(BaseModel):
     max_salary: Optional[int] = Field(default=None, description="Maximum total salary")
     max_ap: Optional[int] = Field(default=None, description="Maximum ability points")
     require_center: bool = Field(default=False, description="Require at least one center")
-    excluded_player_ids: list[int] = Field(default_factory=list, description="Player IDs to exclude")
+    excluded_player_ids: list[str] = Field(
+        default_factory=list, description="Card IDs to exclude explicitly"
+    )
     required_team: Optional[str] = Field(default=None, description="All players must be from this team")
     required_nationality: Optional[str] = Field(default=None, description="All players must have this nationality")
     required_event: Optional[str] = Field(default=None, description="All players must be from this event")
