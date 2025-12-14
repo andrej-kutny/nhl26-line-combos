@@ -53,11 +53,17 @@ class PlayerBase(BaseModel):
     id: int = Field(..., description="Unique player ID")
     first_name: str = Field("", description="Player's first name")
     last_name: str = Field("", description="Player's last name")
+    sub_position: Optional[str] = Field(
+        default=None,
+        description="Forward subtype (C/LW/RW) when available; None otherwise",
+    )
     event: str = Field(..., description="Card event/release type (e.g., ICON, HH, CAP)")
     overall: int = Field(..., ge=1, le=99, description="Overall rating (OVR)")
     nationality: str = Field(..., description="Player nationality")
     league: str = Field(..., description="League (NHL, NHLAA, etc.)")
     team: str = Field(..., description="Team abbreviation")
+    salary: Optional[int] = Field(default=None, description="Synthetic or real salary cap hit")
+    ability_points: Optional[int] = Field(default=None, description="Synthetic or real AP cost")
     
     @property
     def full_name(self) -> str:
@@ -231,4 +237,3 @@ class OptimizationResponse(BaseModel):
     solutions: list[LineSolution] = Field(default_factory=list)
     computation_time_ms: int = Field(default=0, description="Time taken in milliseconds")
     candidates_evaluated: int = Field(default=0, description="Number of candidates considered")
-

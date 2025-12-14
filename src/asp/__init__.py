@@ -1,3 +1,5 @@
-# ASP module - Clingo integration, facts generation, and solver
-# This module will be implemented by the ASP team
+"""ASP module: Clingo integration (facts, rules, solver)."""
 
+from .solver import ASPSolver
+
+__all__ = ["ASPSolver"]
