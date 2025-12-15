@@ -8,6 +8,12 @@ fwd_slot(1..12).
 def_slot(13..18).
 g_slot(19..20).
 
+% Require strong first forward line (slots 1-3)
+:- select(P, S), S=1..3, ovr(P, OVR), OVR < 87.
+
+% Require solid second forward line (slots 4-6)
+:- select(P, S), S=4..6, ovr(P, OVR), OVR < 85.
+
 % Exactly one player per slot
 1 { select(P, S) : player(P, _, _, _, _) } 1 :- fwd_slot(S).
 1 { select(P, S) : player(P, _, _, _, _) } 1 :- def_slot(S).
@@ -15,6 +21,15 @@ g_slot(19..20).
 
 % No duplicate players across any slots
 :- select(P, S1), select(P, S2), S1 < S2.
+
+% Goalie 1 (slot 19) must meet a higher OVR threshold
+:- select(P, S), S=19, ovr(P, OVR), OVR < 87.
+
+% Defense lines 1-2 should be solid
+:- select(P, S), S=13..16, ovr(P, OVR), OVR < 85.
+
+% Defense pair 3 (bonus-oriented) must activate at least one defense combo
+:- not 1 { combo_active_def(C, 3) }.
 
 % Forward line mapping
 fwd_line(L, S1, S2, S3) :- L=1, S1=1,  S2=2,  S3=3.
@@ -40,6 +55,9 @@ combo_active_fwd(C, L) :-
 ovr_bonus(C, Amt) :- combo_active_fwd(C, _), fwd_combo(C, Amt, ovr, _, _, _, _, _, _).
 sal_bonus(C, Amt) :- combo_active_fwd(C, _), fwd_combo(C, Amt, sal, _, _, _, _, _, _).
 ap_bonus(C, Amt)  :- combo_active_fwd(C, _), fwd_combo(C, Amt, ap,  _, _, _, _, _, _).
+
+% Require line 3 to activate at least one forward combo (bonus-oriented line)
+:- not 1 { combo_active_fwd(C, 3) }.
 
 % Activate defense combos per pair; each combo can be used at most once globally
 combo_active_def(C, L) :-
@@ -75,8 +93,13 @@ total_ap_bonus(Bonus) :-
 :- max_salary(Max), total_salary(S), total_salary_bonus(B), S - B > Max.
 :- max_ap(Max), total_ap(A), total_ap_bonus(B), A - B > Max.
 
-% Maximize base OVR + OVR combo bonus
-#maximize { OVR@1, P, S : select(P, S), ovr(P, OVR); Amt@1, C : ovr_bonus(C, Amt) }.
+% Maximize base OVR + OVR combo bonus; SAL/AP bonuses as secondary preference
+#maximize {
+    OVR@3, P, S : select(P, S), ovr(P, OVR);
+    Amt@3, C : ovr_bonus(C, Amt);
+    Amt@2, C : sal_bonus(C, Amt);
+    Amt@2, C : ap_bonus(C, Amt)
+}.
 
 #show select/2.
 #show combo_active_fwd/2.

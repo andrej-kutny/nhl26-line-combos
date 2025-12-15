@@ -314,17 +314,34 @@ class DataLoader:
         if not path.exists():
             path = self.data_dir / "fwd_line_combos_v2.csv"
         if not path.exists():
+            path = self.data_dir / "fwd_line_combos_filtered.csv"
+        if not path.exists():
             path = self.data_dir / "fwd_line_combos.csv"
         df = pd.read_csv(path)
         combos = []
+
+        def _normalize(cond_type: str, cond_key: str) -> tuple[str, str]:
+            cond_type = cond_type.lower().strip()
+            cond_key = cond_key.strip()
+            if cond_type == "card":
+                # Treat CARD as event; strip trailing digits to get the event code
+                import re
+                m = re.match(r"([A-Za-z]+)", cond_key)
+                if m:
+                    cond_key = m.group(1)
+                cond_type = "event"
+            return cond_type, cond_key.upper()
 
         def _clean(val: object) -> str:
             return "" if pd.isna(val) else str(val).strip()
         
         for idx, row in df.iterrows():
-            t1, k1 = _clean(row.get("type1")).lower(), _clean(row.get("key1")).upper()
-            t2, k2 = _clean(row.get("type2")).lower(), _clean(row.get("key2")).upper()
-            t3, k3 = _clean(row.get("type3")).lower(), _clean(row.get("key3")).upper()
+            t1_raw, k1_raw = _clean(row.get("type1")), _clean(row.get("key1"))
+            t2_raw, k2_raw = _clean(row.get("type2")), _clean(row.get("key2"))
+            t3_raw, k3_raw = _clean(row.get("type3")), _clean(row.get("key3"))
+            t1, k1 = _normalize(t1_raw, k1_raw)
+            t2, k2 = _normalize(t2_raw, k2_raw)
+            t3, k3 = _normalize(t3_raw, k3_raw)
             if not (t1 and k1 and t2 and k2 and t3 and k3):
                 continue
             combo = ForwardLineCombo(
@@ -360,16 +377,31 @@ class DataLoader:
         if not path.exists():
             path = self.data_dir / "def_line_combos_v2.csv"
         if not path.exists():
+            path = self.data_dir / "def_line_combos_filtered.csv"
+        if not path.exists():
             path = self.data_dir / "def_line_combos.csv"
         df = pd.read_csv(path)
         combos = []
+
+        def _normalize(cond_type: str, cond_key: str) -> tuple[str, str]:
+            cond_type = cond_type.lower().strip()
+            cond_key = cond_key.strip()
+            if cond_type == "card":
+                import re
+                m = re.match(r"([A-Za-z]+)", cond_key)
+                if m:
+                    cond_key = m.group(1)
+                cond_type = "event"
+            return cond_type, cond_key.upper()
 
         def _clean(val: object) -> str:
             return "" if pd.isna(val) else str(val).strip()
         
         for idx, row in df.iterrows():
-            t1, k1 = _clean(row.get("type1")).lower(), _clean(row.get("key1")).upper()
-            t2, k2 = _clean(row.get("type2")).lower(), _clean(row.get("key2")).upper()
+            t1_raw, k1_raw = _clean(row.get("type1")), _clean(row.get("key1"))
+            t2_raw, k2_raw = _clean(row.get("type2")), _clean(row.get("key2"))
+            t1, k1 = _normalize(t1_raw, k1_raw)
+            t2, k2 = _normalize(t2_raw, k2_raw)
             if not (t1 and k1 and t2 and k2):
                 continue
             combo = DefenseLineCombo(
