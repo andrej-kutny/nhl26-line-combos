@@ -54,6 +54,19 @@ Goal 1 (Stage B): grounding required combos
   - Example (defense): `python scripts/goal1_stageb_enumerate.py --pos def --combo-ids 20 --min-ovr 80 --max-salary 110 --max-models 50`
 - Practical note: enumeration can grow large. We keep it explicit and controllable via `--max-models` (use `0` to enumerate all; expect long runtimes for broad conditions like `event=FANT`).
 
+Empirical sanity checks (local runs)
+------------------------------------
+- Combo activation (current snapshot): `scripts/check_combo_activation.py` reports `55/68` forward combos and `56/71` defense combos activatable (with the nhlhutbuilder-based player snapshot and v3 combos).
+- Forward-line endpoint example (`min_ovr=90`, `target=ovr`) returns a near-maximum base line quickly (e.g., base OVR `272` in ~tens of ms). It may still have `active_combos=[]` if the chosen trio does not match any combo conditions (expected).
+- Defense-pair endpoint example (`min_ovr=88`, `target=ovr`) can activate multiple combos simultaneously. A typical result is two FANT-based SAL combos firing at once:
+  - `event=FANT + event=FANT` (+15 SAL)
+  - `event=FANT + team=TOR` (+5 SAL)
+  This is consistent with the gameplay semantics: a line/pair can activate 0..N combos; each combo ID contributes at most once globally in full-team.
+- Salary/AP interpretation in responses:
+  - We return *effective* totals: `total_salary = base_salary - salary_bonus`, `total_ap = base_ap - ap_bonus`.
+  - Therefore negative values are possible (e.g., SAL bonus exceeds base salary for a pair, or AP bonus exceeds base AP cost when AP costs are unknown/0 in the snapshot).
+- Full-team endpoint can still be slow/timeout with broad constraints. For long-running searches, prefer an offline runner (script/CLI) rather than blocking the API process; this is planned work.
+
 Fresh player data from nhlhutbuilder
 ------------------------------------
 - Fetch: `python scripts/fetch_nhlhutbuilder_api.py` hits `php/player_stats.php` (server-side DataTables) and writes `data/nhlhutbuilder_players_api.csv`. All columns mirror the site (CARD, NAT, TEAM, DIV, SAL, POS, HAND, WGT, HGT, NAME, OVR, aOVR, …, FO, DIS, card_api_id). It iterates pages until the API returns empty, then sorts by name for easy visual validation.
