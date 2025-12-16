@@ -37,6 +37,14 @@ Combo activation sanity check
 - Script: `python -m scripts.check_combo_activation` prints how many forward/defense combos can currently activate with the loaded dataset.
 - Current state with scraped v3 combos vs extended dataset: 18/68 forward, 27/71 defense activate (because many `type=CARD` keys don’t map to our `card_id` UUIDs). Once matching combo files arrive, rerun the script to verify higher activation rates and re-test the API.
 
+Fresh player data from nhlhutbuilder
+------------------------------------
+- Fetch: `python scripts/fetch_nhlhutbuilder_api.py` hits `php/player_stats.php` (server-side DataTables) and writes `data/nhlhutbuilder_players_api.csv`. All columns mirror the site (CARD, NAT, TEAM, DIV, SAL, POS, HAND, WGT, HGT, NAME, OVR, aOVR, …, FO, DIS, card_api_id). It iterates pages until the API returns empty, then sorts by name for easy visual validation.
+- Group duplicates: `python scripts/add_player_group_id.py` reads the API CSV and writes `data/nhlhutbuilder_players_api_dedup.csv` with two extra fields:
+  - `player_group_id`: G1, G2, … for all cards belonging to the same player (heuristic key: name + position + hand + height_in + weight_lb + nationality).
+  - `other_card_ids`: comma-separated list of the other card_api_id values in the same group (helps humans see alternate cards immediately).
+- These dedup ids can be fed into ASP/backend as the canonical `player_id`, while `card_api_id` stays the per-card key. Rules can then forbid multiple cards from the same player_group_id.
+
 Known limitations / next swaps
 ------------------------------
 - Sub-positions, salary, AP are synthetic; replace the override file when real data is available.

@@ -56,13 +56,17 @@ class DataLoader:
         - def_line_combos.csv: Defense line combinations (2 players)
     """
     
-    def __init__(self, data_dir: str = "data/"):
+    def __init__(self, data_dir: str = "data/", use_hutbuilder_api: Optional[bool] = None):
         """
         Initialize the data loader.
         
         Args:
             data_dir: Path to directory containing CSV files.
                       Relative paths are resolved from project root.
+            use_hutbuilder_api: If True, load players from nhlhutbuilder API dump
+                                (data/nhlhutbuilder_players_api_dedup.csv) using
+                                card_api_id as card_id and player_group_id as player_id.
+                                If None, auto-enable when the file exists.
         """
         self.data_dir = Path(data_dir)
         if not self.data_dir.is_absolute():
@@ -70,6 +74,12 @@ class DataLoader:
             project_root = Path(__file__).parent.parent.parent
             self.data_dir = project_root / data_dir
         
+        dedup_file = self.data_dir / "nhlhutbuilder_players_api_dedup.csv"
+        if use_hutbuilder_api is None:
+            self.use_hutbuilder_api = dedup_file.exists()
+        else:
+            self.use_hutbuilder_api = use_hutbuilder_api
+
         self._validate_data_dir()
     
     def _validate_data_dir(self) -> None:
@@ -90,6 +100,78 @@ class DataLoader:
         missing = [f for f in required_files if not (self.data_dir / f).exists()]
         if missing:
             raise FileNotFoundError(f"Missing required data files: {missing}")
+
+    # =========================================================================
+    # HUTBUILDER API DATA (optional source)
+    # =========================================================================
+
+    @lru_cache(maxsize=1)
+    def _load_hutbuilder_players(self) -> list[dict]:
+        """
+        Load all players from nhlhutbuilder API dump if available.
+
+        The file `nhlhutbuilder_players_api_dedup.csv` is produced by
+        `scripts/fetch_nhlhutbuilder_api.py` + `scripts/add_player_group_id.py`.
+        """
+        path = self.data_dir / "nhlhutbuilder_players_api_dedup.csv"
+        if not path.exists():
+            return []
+        df = pd.read_csv(path)
+
+        def split_name(full: str) -> tuple[str, str]:
+            parts = full.strip().split()
+            if len(parts) == 0:
+                return "", ""
+            if len(parts) == 1:
+                return parts[0].title(), ""
+            return parts[0].title(), " ".join(p.title() for p in parts[1:])
+
+        def parse_salary(s: str) -> Optional[int]:
+            # Expect "$12.0M" -> 12 (millions, rounded)
+            if pd.isna(s):
+                return None
+            txt = str(s).replace("$", "").replace("M", "").strip()
+            try:
+                return int(round(float(txt)))
+            except Exception:
+                return None
+
+        players = []
+        for _, row in df.iterrows():
+            pos = str(row.get("position", "")).upper().strip()
+            pos_group: Optional[Position] = None
+            if pos in {"C", "LW", "RW"}:
+                pos_group = Position.FORWARD
+            elif pos in {"LD", "RD"}:
+                pos_group = Position.DEFENSE
+            elif pos == "G":
+                pos_group = Position.GOALIE
+            if pos_group is None:
+                continue
+
+            first_name, last_name = split_name(str(row.get("name", "")))
+            salary = parse_salary(row.get("salary", ""))
+
+            players.append(
+                {
+                    "card_id": str(row.get("card_api_id", "")).strip(),
+                    "player_id": str(row.get("player_group_id", "")).strip(),  # dedup id
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "sub_position": pos,
+                    "event": str(row.get("card", "")).strip(),
+                    "overall": int(row.get("overall", 0)),
+                    "nationality": str(row.get("nationality", "")).strip(),
+                    "league": str(row.get("division", "")).strip(),  # division as league surrogate
+                    "team": str(row.get("team", "")).strip(),
+                    "salary": salary,
+                    "ability_points": None,
+                    "pos_group": pos_group,
+                }
+            )
+
+        # Keep sorted for deterministic results
+        return sorted(players, key=lambda p: (p["pos_group"].value, p["overall"]), reverse=True)
 
     @lru_cache(maxsize=1)
     def _load_override_attributes(self) -> dict[str, dict]:
@@ -185,6 +267,29 @@ class DataLoader:
         Returns:
             List of ForwardPlayer objects with names resolved
         """
+        # Prefer nhlhutbuilder API dump if enabled
+        if self.use_hutbuilder_api:
+            players = []
+            for p in self._load_hutbuilder_players():
+                if p["pos_group"] != Position.FORWARD:
+                    continue
+                player = ForwardPlayer(
+                    id=p["card_id"],
+                    player_id=p["player_id"],
+                    first_name=p["first_name"],
+                    last_name=p["last_name"],
+                    sub_position=p["sub_position"] or None,
+                    event=p["event"],
+                    overall=p["overall"],
+                    nationality=p["nationality"],
+                    league=p["league"],
+                    team=p["team"],
+                    salary=p["salary"],
+                    ability_points=p["ability_points"],
+                )
+                players.append(player)
+            return players
+
         df = pd.read_csv(self.data_dir / "fwd_filtered.csv")
         players = []
         
@@ -196,7 +301,7 @@ class DataLoader:
 
             player = ForwardPlayer(
                 id=str(row["card_id"]).strip(),
-                player_id=player_id,
+                player_id=str(player_id),
                 first_name=first_name,
                 last_name=last_name,
                 sub_position=str(row.get("position", "")).strip().upper() or None,
@@ -221,6 +326,28 @@ class DataLoader:
         Returns:
             List of DefensePlayer objects with names resolved
         """
+        if self.use_hutbuilder_api:
+            players = []
+            for p in self._load_hutbuilder_players():
+                if p["pos_group"] != Position.DEFENSE:
+                    continue
+                player = DefensePlayer(
+                    id=p["card_id"],
+                    player_id=p["player_id"],
+                    first_name=p["first_name"],
+                    last_name=p["last_name"],
+                    sub_position=p["sub_position"] or None,
+                    event=p["event"],
+                    overall=p["overall"],
+                    nationality=p["nationality"],
+                    league=p["league"],
+                    team=p["team"],
+                    salary=p["salary"],
+                    ability_points=p["ability_points"],
+                )
+                players.append(player)
+            return players
+
         df = pd.read_csv(self.data_dir / "def_filtered.csv")
         players = []
         
@@ -232,7 +359,7 @@ class DataLoader:
 
             player = DefensePlayer(
                 id=str(row["card_id"]).strip(),
-                player_id=player_id,
+                player_id=str(player_id),
                 first_name=first_name,
                 last_name=last_name,
                 sub_position=str(row.get("position", "")).strip().upper() or None,
@@ -257,6 +384,31 @@ class DataLoader:
         Returns:
             List of Goalie objects with names resolved
         """
+        if self.use_hutbuilder_api:
+            players = []
+            for p in self._load_hutbuilder_players():
+                if p["pos_group"] != Position.GOALIE:
+                    continue
+                player = Goalie(
+                    id=p["card_id"],
+                    player_id=p["player_id"],
+                    first_name=p["first_name"],
+                    last_name=p["last_name"],
+                    sub_position=None,
+                    event=p["event"],
+                    overall=p["overall"],
+                    nationality=p["nationality"],
+                    league=p["league"],
+                    team=p["team"],
+                    salary=p["salary"],
+                    ability_points=p["ability_points"],
+                )
+                players.append(player)
+            # The nhlhutbuilder player-stats table is skater-focused; if it
+            # contains no goalies, fall back to the project's goalie CSV.
+            if players:
+                return players
+
         df = pd.read_csv(self.data_dir / "g_filtered.csv")
         players = []
         
@@ -268,7 +420,7 @@ class DataLoader:
 
             player = Goalie(
                 id=str(row["card_id"]).strip(),
-                player_id=player_id,
+                player_id=str(player_id),
                 first_name=first_name,
                 last_name=last_name,
                 sub_position=None,

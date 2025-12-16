@@ -69,3 +69,7 @@ src/asp/generated/
 
 # Line combo / Player images
 data/img/
+
+# Raw web scrapes (local debugging artifacts)
+data/raw/
+data/nhlhutbuilder_players_parsed.csv

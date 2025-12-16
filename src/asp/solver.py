@@ -386,7 +386,9 @@ class ASPSolver:
                 ")."
             )
             if p.player_id is not None:
-                lines.append(f"card_player({self._clingo_str(str(p.id))}, {int(p.player_id)}).")
+                lines.append(
+                    f"card_player({self._clingo_str(str(p.id))}, {self._clingo_str(str(p.player_id))})."
+                )
 
         if is_forward:
             for c in combos:
@@ -428,6 +430,11 @@ class ASPSolver:
         if constraints.require_center:
             lines.append("require_center.")
 
+        if constraints.max_salary is not None:
+            lines.append(f"max_salary({int(constraints.max_salary)}).")
+        if constraints.max_ap is not None:
+            lines.append(f"max_ap({int(constraints.max_ap)}).")
+
         for p in players:
             if p.sub_position:
                 lines.append(f"sub_pos({self._clingo_str(str(p.id))}, {self._clingo_str(p.sub_position.lower())}).")
@@ -462,7 +469,9 @@ class ASPSolver:
             )
             lines.append(f"forward({self._clingo_str(str(p.id))}).")
             if p.player_id is not None:
-                lines.append(f"card_player({self._clingo_str(str(p.id))}, {int(p.player_id)}).")
+                lines.append(
+                    f"card_player({self._clingo_str(str(p.id))}, {self._clingo_str(str(p.player_id))})."
+                )
             if p.sub_position:
                 lines.append(f"sub_pos({self._clingo_str(str(p.id))}, {self._clingo_str(p.sub_position.lower())}).")
             if p.salary is not None:
@@ -481,7 +490,9 @@ class ASPSolver:
             )
             lines.append(f"defense_player({self._clingo_str(str(p.id))}).")
             if p.player_id is not None:
-                lines.append(f"card_player({self._clingo_str(str(p.id))}, {int(p.player_id)}).")
+                lines.append(
+                    f"card_player({self._clingo_str(str(p.id))}, {self._clingo_str(str(p.player_id))})."
+                )
             if p.salary is not None:
                 lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
             if p.ability_points is not None:
@@ -498,7 +509,9 @@ class ASPSolver:
             )
             lines.append(f"goalie({self._clingo_str(str(p.id))}).")
             if p.player_id is not None:
-                lines.append(f"card_player({self._clingo_str(str(p.id))}, {int(p.player_id)}).")
+                lines.append(
+                    f"card_player({self._clingo_str(str(p.id))}, {self._clingo_str(str(p.player_id))})."
+                )
             if p.salary is not None:
                 lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
             if p.ability_points is not None:
@@ -539,6 +552,10 @@ class ASPSolver:
             lines.append(f"required_event({self._clingo_str(constraints.required_event.lower())}).")
         if constraints.require_center:
             lines.append("require_center.")
+        if constraints.max_salary is not None:
+            lines.append(f"max_salary({int(constraints.max_salary)}).")
+        if constraints.max_ap is not None:
+            lines.append(f"max_ap({int(constraints.max_ap)}).")
 
         return "\n".join(lines)
 

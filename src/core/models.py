@@ -51,8 +51,8 @@ class ConditionType(str, Enum):
 class PlayerBase(BaseModel):
     """Base model for all player types."""
     id: str = Field(..., description="Unique card ID (card_id from dataset)")
-    player_id: Optional[int] = Field(
-        default=None, description="Underlying player identifier; used to avoid duplicates"
+    player_id: Optional[str] = Field(
+        default=None, description="Underlying player identifier (string); used to avoid duplicates"
     )
     first_name: str = Field("", description="Player's first name")
     last_name: str = Field("", description="Player's last name")
