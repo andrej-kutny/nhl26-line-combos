@@ -3,14 +3,10 @@ Implementation Notes (concise, research-style)
 
 Data sources and placeholders
 -----------------------------
-- Player data (preferred when present): `data/nhlhutbuilder_players_api_dedup.csv` generated from nhlhutbuilder.
-  - `card_api_id` is used as `card_id` (unique per card).
-  - `player_group_id` is used as `player_id` (canonical, to forbid multiple cards of the same player).
-  - Salary is parsed from `$X.YM` into an integer in “millions” (e.g., `$12.0M` → `12`).
-- Fallback player data: original CSVs under `data/` (kept untouched).
-- Legacy synthetic overrides: `data/player_attributes_override.csv` (kept as a fallback path; can be removed once the dataset is authoritative).
-- Chemistry combos (v3) from nhlhutbuilder scrape:
-  - `fwd_line_combos_v3.csv` (68 entries), `def_line_combos_v3.csv` (71 entries) with reward_type {OVR, AP, SAL}. Original combos remain for fallback.
+- Canonical dataset: `data/fwd_filtered.csv`, `data/def_filtered.csv`, `data/g_filtered.csv` and the combo CSVs in `data/` (the project’s shared “source of truth” once PR #8 lands in `dev`).
+- Local snapshot (optional, for reproducibility/offline experiments): scripts can pull `player-stats.php` from nhlhutbuilder and generate CSVs locally.
+  - This is useful when the upstream dataset is temporarily in flux, but the generated CSVs are not intended to be committed (large + noisy diffs).
+- Legacy synthetic overrides: `data/player_attributes_override.csv` (kept as a fallback path while data sources were incomplete; can be removed once the upstream dataset is authoritative).
 
 Solver/runtime choices
 ----------------------
@@ -43,7 +39,7 @@ API quick-checks (venv311)
 Combo activation sanity check
 -----------------------------
 - Script: `python scripts/check_combo_activation.py` prints how many forward/defense combos can currently activate with the loaded dataset.
-- With the nhlhutbuilder-based player snapshot and v3 combos, we currently see ~55/68 forward and ~56/71 defense combos activatable (the loader normalizes `type=CARD` to `event` codes such as `GM`, `FANT`, etc.).
+- If you see fewer than the full `68/68` and `71/71`, the most common cause is malformed combo keys in older scrape artifacts (e.g., `team=TBL1445825681` instead of `team=TBL`). The script prints the first failing combos and the reason.
 
 Goal 1 (Stage B): grounding required combos
 -------------------------------------------

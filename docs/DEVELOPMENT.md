@@ -61,18 +61,16 @@ uvicorn src.api.main:app --reload --port 8000
 
 When Clingo is solving, a single-worker dev server can appear “frozen” because the request is CPU-bound.
 For interactive debugging, use multiple workers and run a dedicated health-check in a separate Terminal tab.
+On macOS Terminal, `Cmd+T` opens a new tab (a separate shell session).
 
 **Tab T1 (start API on port 8000)**
 
 ```bash
 cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
 source venv/bin/activate
-lsof -nP -iTCP:8000 -sTCP:LISTEN
-kill -9 <PID>
+kill -9 $(lsof -t -nP -iTCP:8000 -sTCP:LISTEN) 2>/dev/null || true
 uvicorn src.api.main:app --host 127.0.0.1 --port 8000 --workers 2 --log-level warning
 ```
-
-Replace `<PID>` with the numeric PID printed by `lsof`.
 
 **Tab T2 (health-check)**
 
@@ -373,13 +371,10 @@ print(f"Filtered to {len(filtered)} players")
 ### Port Already in Use
 
 ```bash
-# Find process using port
-lsof -i :8000
-
-# Kill process
-kill -9 <PID>
-
-# Or use different port
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+lsof -nP -iTCP:8000 -sTCP:LISTEN
+kill -9 $(lsof -t -nP -iTCP:8000 -sTCP:LISTEN) 2>/dev/null || true
 uvicorn src.api.main:app --port 8001
 ```
 
