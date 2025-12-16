@@ -10,16 +10,25 @@
 % No duplicate players in different slots
 :- select(P, S1), select(P, S2), S1 < S2.
 
-combo_active(C) :-
-    def_combo(C, _, _, T1, K1, T2, K2),
-    select(P1, 1), matches(P1, T1, K1),
-    select(P2, 2), matches(P2, T2, K2).
+% Symmetry breaking: slot order is irrelevant for constraints/objective here.
+:- select(P1, 1), select(P2, 2), P1 > P2.
 
-% Allow swapping the two conditions across the two selected players
-combo_active(C) :-
-    def_combo(C, _, _, T1, K1, T2, K2),
-    select(P1, 1), matches(P1, T2, K2),
-    select(P2, 2), matches(P2, T1, K1).
+% At most one pair combo can be activated at a time.
+% Restrict which combo types we consider based on the optimization target.
+0 { use_combo(C) : def_combo(C, _, ovr, _, _, _, _) } 1 :- opt_target("ovr").
+0 { use_combo(C) : def_combo(C, _, sal, _, _, _, _) } 1 :- opt_target("salary").
+0 { use_combo(C) : def_combo(C, _, ap,  _, _, _, _) } 1 :- opt_target("ap").
+0 { use_combo(C) : def_combo(C, _, _,   _, _, _, _) } 1 :- opt_target("balanced").
+
+% Combo activation as a small assignment problem (2 conditions → 2 players).
+1 { assign(C, 1, P) : select(P, _), matches(P, T1, K1) } 1 :-
+    use_combo(C), def_combo(C, _, _, T1, K1, _, _).
+1 { assign(C, 2, P) : select(P, _), matches(P, T2, K2) } 1 :-
+    use_combo(C), def_combo(C, _, _, _, _, T2, K2).
+
+:- assign(C, 1, P), assign(C, 2, P).
+
+combo_active(C) :- use_combo(C), assign(C, 1, _), assign(C, 2, _).
 
 ovr_bonus(C, Amt) :- combo_active(C), def_combo(C, Amt, ovr, _, _, _, _).
 sal_bonus(C, Amt) :- combo_active(C), def_combo(C, Amt, sal, _, _, _, _).
@@ -50,8 +59,6 @@ total_ap_bonus(Bonus) :-
 % - ovr: maximize effective OVR; tie-break on bonuses
 #maximize { OVR@3, P, S : opt_target("ovr"), select(P, S), ovr(P, OVR);
             Amt@3, C : opt_target("ovr"), ovr_bonus(C, Amt) }.
-#maximize { Amt@2, C : opt_target("ovr"), sal_bonus(C, Amt);
-            Amt@2, C : opt_target("ovr"), ap_bonus(C, Amt) }.
 
 % - salary: maximize SAL bonus first, then effective OVR
 #maximize { Amt@3, C : opt_target("salary"), sal_bonus(C, Amt) }.

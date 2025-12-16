@@ -50,6 +50,9 @@ combo_active_fwd(C, L) :-
     select(P2, S2), matches(P2, T2, K2),
     select(P3, S3), matches(P3, T3, K3).
 
+% At most one active forward combo per line.
+:- combo_active_fwd(C1, L), combo_active_fwd(C2, L), C1 < C2.
+
 :- combo_active_fwd(C, L1), combo_active_fwd(C, L2), L1 != L2.
 
 ovr_bonus(C, Amt) :- combo_active_fwd(C, _), fwd_combo(C, Amt, ovr, _, _, _, _, _, _).
@@ -65,6 +68,9 @@ combo_active_def(C, L) :-
     def_combo(C, _, _, T1, K1, T2, K2),
     select(P1, S1), matches(P1, T1, K1),
     select(P2, S2), matches(P2, T2, K2).
+
+% At most one active defense combo per pair.
+:- combo_active_def(C1, L), combo_active_def(C2, L), C1 < C2.
 
 :- combo_active_def(C, L1), combo_active_def(C, L2), L1 != L2.
 

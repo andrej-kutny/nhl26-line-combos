@@ -3,27 +3,32 @@ Implementation Notes (concise, research-style)
 
 Data sources and placeholders
 -----------------------------
-- Player base data: original CSVs under `data/` (kept untouched).
-- Synthetic attributes in `data/player_attributes_override.csv`:
-  - Sub-position (C/LW/RW) synthesized per team: sort FWD by OVR, every 3rd → C, remaining alternate LW/RW.
-  - Salary (placeholder): `round((50_000 + 5_000*(OVR-80)) * event_mult)`; multipliers base={XP,ROOK,FANT,default}:1.0, promo={HH,NHL24,WCUP,ICON-LITE}:1.2, high-end={ICON,MSP,HH-MASTER}:1.5.
-  - AP (placeholder): `max(0, floor((OVR-80)/2)) + event_bonus`; bonus base=0, promo=1, high-end=2.
+- Player data (preferred when present): `data/nhlhutbuilder_players_api_dedup.csv` generated from nhlhutbuilder.
+  - `card_api_id` is used as `card_id` (unique per card).
+  - `player_group_id` is used as `player_id` (canonical, to forbid multiple cards of the same player).
+  - Salary is parsed from `$X.YM` into an integer in “millions” (e.g., `$12.0M` → `12`).
+- Fallback player data: original CSVs under `data/` (kept untouched).
+- Legacy synthetic overrides: `data/player_attributes_override.csv` (kept as a fallback path; can be removed once the dataset is authoritative).
 - Chemistry combos (v3) from nhlhutbuilder scrape:
   - `fwd_line_combos_v3.csv` (68 entries), `def_line_combos_v3.csv` (71 entries) with reward_type {OVR, AP, SAL}. Original combos remain for fallback.
 
 Solver/runtime choices
 ----------------------
-- Environment: Python 3.11 with `clingo==5.7.1` (5.8.0 + 3.13 segfaulted). Use `venv311`.
+- Environment: Python 3.11 (3.13 is not recommended for clingo). On macOS we keep this in a local `venv/`.
 - Symbol handling: collect `model.symbols(shown=True)` to avoid use-after-free.
 - Full-team pruning (to keep the search tractable):
   - FWD candidates: ~24, DEF: ~14, G: ~4 (sorted by OVR).
   - Each combo ID can activate at most once globally.
-- Response times: forward/defense are fast; full-team ~60–120 s with current caps (can be tightened or given a timeout).
+- Response times: forward/defense are interactive with candidate pruning; full-team still depends heavily on caps.
 
 Optimization targets and constraints
 ------------------------------------
-- Primary objective: maximize OVR + OVR bonuses.
-- SAL/AP facts and bonuses are in the rules; cap-checks fire if `max_salary`/`max_ap` are provided in constraints.
+- Core constraint interpretation (used consistently across endpoints):
+  - Salary “cap” is treated as an effective cap: `total_salary - salary_bonus <= max_salary` (SAL bonuses increase budget).
+  - AP cap is treated analogously: `total_ap - ap_bonus <= max_ap`.
+- Targets:
+  - `ovr`: maximize base OVR + OVR bonus (restricted to at most one OVR combo per line to keep the search stable).
+  - `salary`, `ap`, `balanced`: bonus-first modes. We assume at most one combo can be activated per line, and we evaluate top combos first (forced `use_combo/1`) to avoid expensive global optimality proofs.
 - Effective salary/AP in responses: `total_salary - salary_bonus`, `total_ap - ap_bonus`. No SAL/AP objectives yet; they can be added when real values/requirements are set.
 
 API quick-checks (venv311)

@@ -69,7 +69,22 @@ class ASPSolver:
             excluded_ids=constraints.excluded_player_ids,
         )
         forwards = self._dedupe_best_card_per_player(forwards)
-        forwards = self._select_candidates(forwards, combos)
+
+        # Bonus-oriented targets can be expensive to optimize globally. Since the
+        # ASP encoding activates at most one combo at a time, we can cheaply try
+        # the strongest combos first and then maximize OVR within the best-feasible one.
+        if target != OptimizationTarget.OVR:
+            forced = self._try_forward_line_with_forced_combo(
+                forwards=forwards,
+                combos=combos,
+                constraints=constraints,
+                target=target,
+                num_solutions=num_solutions,
+            )
+            if forced is not None:
+                return forced
+
+        forwards = self._select_candidates(forwards, combos, target=target)
 
         program = "\n".join(
             [
@@ -85,7 +100,11 @@ class ASPSolver:
             ]
         )
 
-        models = self._solve(program, num_solutions=num_solutions)
+        models = self._solve(
+            program,
+            num_solutions=num_solutions,
+            model_limit=self._model_limit(target=target, is_full_team=False),
+        )
         return [
             self._parse_line_model(
                 symbols=model,
@@ -116,7 +135,19 @@ class ASPSolver:
             excluded_ids=constraints.excluded_player_ids,
         )
         defense = self._dedupe_best_card_per_player(defense)
-        defense = self._select_candidates(defense, combos)
+
+        if target != OptimizationTarget.OVR:
+            forced = self._try_defense_pair_with_forced_combo(
+                defense=defense,
+                combos=combos,
+                constraints=constraints,
+                target=target,
+                num_solutions=num_solutions,
+            )
+            if forced is not None:
+                return forced
+
+        defense = self._select_candidates(defense, combos, target=target)
 
         program = "\n".join(
             [
@@ -132,7 +163,11 @@ class ASPSolver:
             ]
         )
 
-        models = self._solve(program, num_solutions=num_solutions)
+        models = self._solve(
+            program,
+            num_solutions=num_solutions,
+            model_limit=self._model_limit(target=target, is_full_team=False),
+        )
         return [
             self._parse_line_model(
                 symbols=model,
@@ -180,13 +215,16 @@ class ASPSolver:
         fwd_combos = self.loader.get_forward_combos()
         def_combos = self.loader.get_defense_combos()
 
-        forwards = self._select_candidates(forwards, fwd_combos)
-        defense = self._select_candidates(defense, def_combos)
+        forwards = self._select_candidates(forwards, fwd_combos, target=target)
+        defense = self._select_candidates(defense, def_combos, target=target)
         goalies = goalies[:10]  # cap goalies to reduce search space
 
-        forwards.sort(key=lambda p: p.overall, reverse=True)
-        defense.sort(key=lambda p: p.overall, reverse=True)
-        goalies.sort(key=lambda p: p.overall, reverse=True)
+        # Keep the full-team candidate pool focused. For bonus-oriented targets we
+        # prefer cheaper cards to keep the cap feasible; for OVR we prefer raw OVR.
+        sort_key = self._candidate_sort_key(target)
+        forwards.sort(key=sort_key)
+        defense.sort(key=sort_key)
+        goalies.sort(key=sort_key)
 
         forwards = forwards[: self.max_fullteam_forwards]
         defense = defense[: self.max_fullteam_defense]
@@ -208,7 +246,11 @@ class ASPSolver:
             ]
         )
 
-        models = self._solve(program, num_solutions=num_solutions)
+        models = self._solve(
+            program,
+            num_solutions=num_solutions,
+            model_limit=self._model_limit(target=target, is_full_team=True),
+        )
         return [
             self._parse_full_team_model(
                 symbols=model,
@@ -314,35 +356,101 @@ class ASPSolver:
                 best[key] = p
         return list(best.values())
 
-    def _select_candidates(self, players: list, combos: list) -> list:
+    def _select_candidates(self, players: list, combos: list, *, target: OptimizationTarget) -> list:
         """
         Reduce search space by selecting a candidate subset.
 
         Strategy:
-        - Include top N players by OVR globally
-        - Include top K players per combo condition (team/nationality/event)
-        - Cap total candidates to max_candidates_total by OVR
+        - Always include a small set of top-OVR players (keeps quality for any target)
+        - Include a target-focused global slice (cheap cards for salary/balanced/ap)
+        - Include top K players per combo condition (target-focused)
+        - Cap total candidates to max_candidates_total (target-focused)
         """
-        if len(players) <= self.max_candidates_total:
+        # For pure OVR optimization, we only need the top part of the distribution.
+        # Including low-OVR cards just explodes the search space without improving the optimum.
+        if target == OptimizationTarget.OVR:
+            by_ovr = sorted(players, key=lambda p: p.overall, reverse=True)
+            return by_ovr[: min(len(by_ovr), 80)]
+
+        max_total = self.max_candidates_total
+        max_global = self.max_candidates_global
+        max_per_condition = self.max_candidates_per_condition
+
+        # Bonus-oriented targets get a much smaller candidate pool to keep the
+        # search space tractable under optimization (especially for SALARY/BALANCED).
+        max_total = min(max_total, 160)
+        max_global = min(max_global, 120)
+        max_per_condition = min(max_per_condition, 12)
+
+        if len(players) <= max_total:
             return players
 
-        players_sorted = sorted(players, key=lambda p: p.overall, reverse=True)
+        by_ovr = sorted(players, key=lambda p: p.overall, reverse=True)
+        sort_key = self._candidate_sort_key(target)
+        by_target = sorted(players, key=sort_key)
         selected_ids: set[str] = set()
 
-        for p in players_sorted[: self.max_candidates_global]:
+        if target == OptimizationTarget.OVR:
+            global_primary = by_ovr[: max_global]
+            global_fallback = []
+        else:
+            global_primary = by_target[: max_global]
+            global_fallback = by_ovr[: min(25, max_global)]
+
+        for p in global_primary + global_fallback:
             selected_ids.add(str(p.id))
 
         for combo in combos:
             for cond in combo.get_conditions():
                 matching = [p for p in players if p.matches_condition(cond.type, cond.key)]
-                matching.sort(key=lambda p: p.overall, reverse=True)
-                for p in matching[: self.max_candidates_per_condition]:
+                matching.sort(key=sort_key)
+                for p in matching[: max_per_condition]:
                     selected_ids.add(str(p.id))
 
-        selected = [p for p in players_sorted if str(p.id) in selected_ids]
-        if len(selected) > self.max_candidates_total:
-            selected = selected[: self.max_candidates_total]
+        base_order = by_ovr if target == OptimizationTarget.OVR else by_target
+        selected = [p for p in base_order if str(p.id) in selected_ids]
+        if len(selected) > max_total:
+            selected = selected[: max_total]
         return selected
+
+    @staticmethod
+    def _candidate_sort_key(target: OptimizationTarget):
+        """
+        Sort key for candidate selection.
+
+        For bonus-oriented targets we want to keep the candidate pool "cap-feasible"
+        by preferring cheaper cards (and then higher OVR as a tie-break).
+        """
+
+        def key(p) -> tuple:
+            salary = getattr(p, "salary", None)
+            ap = getattr(p, "ability_points", None)
+            salary_key = int(salary) if salary is not None else 10**9
+            ap_key = int(ap) if ap is not None else 10**9
+
+            if target == OptimizationTarget.OVR:
+                return (-int(p.overall), salary_key, ap_key, str(p.id))
+            if target == OptimizationTarget.SALARY:
+                return (salary_key, -int(p.overall), ap_key, str(p.id))
+            if target == OptimizationTarget.AP:
+                return (ap_key, -int(p.overall), salary_key, str(p.id))
+            return (salary_key, ap_key, -int(p.overall), str(p.id))
+
+        return key
+
+    @staticmethod
+    def _model_limit(*, target: OptimizationTarget, is_full_team: bool) -> int | None:
+        """
+        Keep API responsive under expensive objectives.
+
+        For bonus-oriented targets we typically do not need proven optimality.
+        Instead, we cap the number of models explored and return the best model
+        encountered so far. This keeps the API responsive and avoids long
+        optimality proofs.
+        """
+        if target == OptimizationTarget.OVR:
+            return None
+        return 50 if is_full_team else 250
 
     @staticmethod
     def _read_rules(filename: str) -> str:
@@ -377,9 +485,12 @@ class ASPSolver:
         constraints: OptimizationConstraints,
         is_forward: bool,
         target: OptimizationTarget,
+        forced_combo_id: int | None = None,
     ) -> str:
         lines: list[str] = []
         lines.append(f"opt_target({self._clingo_str(target.value.lower())}).")
+        if forced_combo_id is not None:
+            lines.append(f"use_combo({int(forced_combo_id)}).")
 
         for p in players:
             lines.append(
@@ -449,6 +560,130 @@ class ASPSolver:
                 lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
 
         return "\n".join(lines)
+
+    def _try_forward_line_with_forced_combo(
+        self,
+        *,
+        forwards: list,
+        combos: list,
+        constraints: OptimizationConstraints,
+        target: OptimizationTarget,
+        num_solutions: int,
+    ) -> list[LineSolution] | None:
+        if target == OptimizationTarget.SALARY:
+            prioritized = [c for c in combos if c.reward_type.value == "SAL"]
+        elif target == OptimizationTarget.AP:
+            prioritized = [c for c in combos if c.reward_type.value == "AP"]
+        else:  # BALANCED
+            prioritized = list(combos)
+
+        prioritized.sort(key=lambda c: (c.reward_amount, c.id), reverse=True)
+
+        for combo in prioritized[:25]:
+            candidates = self._candidates_for_combo(forwards, combo, limit=120)
+            program = "\n".join(
+                [
+                    self._generate_facts(
+                        players=candidates,
+                        combos=[combo],
+                        constraints=constraints,
+                        is_forward=True,
+                        target=target,
+                        forced_combo_id=combo.id,
+                    ),
+                    self._read_rules("base.lp"),
+                    self._read_rules("forward_line.lp"),
+                ]
+            )
+
+            models = self._solve(program, num_solutions=num_solutions, model_limit=50)
+            if not models:
+                continue
+
+            return [
+                self._parse_line_model(
+                    symbols=model,
+                    players=candidates,
+                    combos=[combo],
+                    position=Position.FORWARD,
+                    expected_slots=(1, 2, 3),
+                    rank=i + 1,
+                )
+                for i, model in enumerate(models)
+            ]
+
+        return None
+
+    def _try_defense_pair_with_forced_combo(
+        self,
+        *,
+        defense: list,
+        combos: list,
+        constraints: OptimizationConstraints,
+        target: OptimizationTarget,
+        num_solutions: int,
+    ) -> list[LineSolution] | None:
+        if target == OptimizationTarget.SALARY:
+            prioritized = [c for c in combos if c.reward_type.value == "SAL"]
+        elif target == OptimizationTarget.AP:
+            prioritized = [c for c in combos if c.reward_type.value == "AP"]
+        else:  # BALANCED
+            prioritized = list(combos)
+
+        prioritized.sort(key=lambda c: (c.reward_amount, c.id), reverse=True)
+
+        for combo in prioritized[:25]:
+            candidates = self._candidates_for_combo(defense, combo, limit=90)
+            program = "\n".join(
+                [
+                    self._generate_facts(
+                        players=candidates,
+                        combos=[combo],
+                        constraints=constraints,
+                        is_forward=False,
+                        target=target,
+                        forced_combo_id=combo.id,
+                    ),
+                    self._read_rules("base.lp"),
+                    self._read_rules("defense_pair.lp"),
+                ]
+            )
+
+            models = self._solve(program, num_solutions=num_solutions, model_limit=50)
+            if not models:
+                continue
+
+            return [
+                self._parse_line_model(
+                    symbols=model,
+                    players=candidates,
+                    combos=[combo],
+                    position=Position.DEFENSE,
+                    expected_slots=(1, 2),
+                    rank=i + 1,
+                )
+                for i, model in enumerate(models)
+            ]
+
+        return None
+
+    @staticmethod
+    def _candidates_for_combo(players: list, combo, *, limit: int) -> list:
+        """
+        Narrow candidate set for a single forced combo.
+
+        We take the union of players matching any of the combo's conditions and
+        keep only the highest-OVR cards. This keeps Clingo grounding/solving
+        tractable while still letting it pick the best line under that combo.
+        """
+        conds = combo.get_conditions()
+        filtered = [
+            p
+            for p in players
+            if any(p.matches_condition(cond.type, cond.key) for cond in conds)
+        ]
+        filtered.sort(key=lambda p: p.overall, reverse=True)
+        return filtered[:limit]
 
     def _generate_full_team_facts(
         self,
@@ -566,7 +801,13 @@ class ASPSolver:
 
         return "\n".join(lines)
 
-    def _solve(self, program: str, *, num_solutions: int) -> list[list]:
+    def _solve(
+        self,
+        program: str,
+        *,
+        num_solutions: int,
+        model_limit: int | None = None,
+    ) -> list[list]:
         if not self.is_available():
             raise RuntimeError(
                 "Clingo is not available. Install dependencies from "
@@ -576,12 +817,9 @@ class ASPSolver:
 
         import clingo  # type: ignore
 
-        ctl = clingo.Control(
-            [
-                "--warn=none",
-                "--opt-mode=optN",
-            ]
-        )
+        ctl = clingo.Control(["--warn=none", "--opt-mode=optN"])
+        if model_limit is not None:
+            ctl.configuration.solve.solve_limit = str(int(model_limit))
         ctl.add("base", [], program)
         ctl.ground([("base", [])])
 

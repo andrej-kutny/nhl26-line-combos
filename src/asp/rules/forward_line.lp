@@ -11,42 +11,35 @@
 % No duplicate players in different slots
 :- select(P, S1), select(P, S2), S1 < S2.
 
-combo_active(C) :-
-    fwd_combo(C, _, _, T1, K1, T2, K2, T3, K3),
-    select(P1, 1), matches(P1, T1, K1),
-    select(P2, 2), matches(P2, T2, K2),
-    select(P3, 3), matches(P3, T3, K3).
+% Symmetry breaking: slot order is irrelevant for constraints/objective here.
+% This reduces 3! equivalent permutations of the same selected set.
+:- select(P1, 1), select(P2, 2), P1 > P2.
+:- select(P2, 2), select(P3, 3), P2 > P3.
 
-% Allow condition order to be permuted across the 3 selected players
-combo_active(C) :-
-    fwd_combo(C, _, _, T1, K1, T2, K2, T3, K3),
-    select(P1, 1), matches(P1, T1, K1),
-    select(P2, 2), matches(P2, T3, K3),
-    select(P3, 3), matches(P3, T2, K2).
+% At most one line combo can be activated at a time.
+% Restrict which combo types we consider based on the optimization target to
+% keep the search space small.
+0 { use_combo(C) : fwd_combo(C, _, ovr, _, _, _, _, _, _) } 1 :- opt_target("ovr").
+0 { use_combo(C) : fwd_combo(C, _, sal, _, _, _, _, _, _) } 1 :- opt_target("salary").
+0 { use_combo(C) : fwd_combo(C, _, ap,  _, _, _, _, _, _) } 1 :- opt_target("ap").
+0 { use_combo(C) : fwd_combo(C, _, _,   _, _, _, _, _, _) } 1 :- opt_target("balanced").
 
-combo_active(C) :-
-    fwd_combo(C, _, _, T1, K1, T2, K2, T3, K3),
-    select(P1, 1), matches(P1, T2, K2),
-    select(P2, 2), matches(P2, T1, K1),
-    select(P3, 3), matches(P3, T3, K3).
+% Combo activation as a small assignment problem.
+%
+% We assign each of the 3 combo conditions to a distinct selected player.
+% This avoids an expensive grounding cross-product over (P1,P2,P3) tuples.
+1 { assign(C, 1, P) : select(P, _), matches(P, T1, K1) } 1 :-
+    use_combo(C), fwd_combo(C, _, _, T1, K1, _, _, _, _).
+1 { assign(C, 2, P) : select(P, _), matches(P, T2, K2) } 1 :-
+    use_combo(C), fwd_combo(C, _, _, _, _, T2, K2, _, _).
+1 { assign(C, 3, P) : select(P, _), matches(P, T3, K3) } 1 :-
+    use_combo(C), fwd_combo(C, _, _, _, _, _, _, T3, K3).
 
-combo_active(C) :-
-    fwd_combo(C, _, _, T1, K1, T2, K2, T3, K3),
-    select(P1, 1), matches(P1, T2, K2),
-    select(P2, 2), matches(P2, T3, K3),
-    select(P3, 3), matches(P3, T1, K1).
+:- assign(C, 1, P), assign(C, 2, P).
+:- assign(C, 1, P), assign(C, 3, P).
+:- assign(C, 2, P), assign(C, 3, P).
 
-combo_active(C) :-
-    fwd_combo(C, _, _, T1, K1, T2, K2, T3, K3),
-    select(P1, 1), matches(P1, T3, K3),
-    select(P2, 2), matches(P2, T1, K1),
-    select(P3, 3), matches(P3, T2, K2).
-
-combo_active(C) :-
-    fwd_combo(C, _, _, T1, K1, T2, K2, T3, K3),
-    select(P1, 1), matches(P1, T3, K3),
-    select(P2, 2), matches(P2, T2, K2),
-    select(P3, 3), matches(P3, T1, K1).
+combo_active(C) :- use_combo(C), assign(C, 1, _), assign(C, 2, _), assign(C, 3, _).
 
 ovr_bonus(C, Amt) :- combo_active(C), fwd_combo(C, Amt, ovr, _, _, _, _, _, _).
 sal_bonus(C, Amt) :- combo_active(C), fwd_combo(C, Amt, sal, _, _, _, _, _, _).
@@ -77,8 +70,6 @@ total_ap_bonus(Bonus) :-
 % - ovr: maximize effective OVR; tie-break on bonuses
 #maximize { OVR@3, P, S : opt_target("ovr"), select(P, S), ovr(P, OVR);
             Amt@3, C : opt_target("ovr"), ovr_bonus(C, Amt) }.
-#maximize { Amt@2, C : opt_target("ovr"), sal_bonus(C, Amt);
-            Amt@2, C : opt_target("ovr"), ap_bonus(C, Amt) }.
 
 % - salary: maximize SAL bonus first, then effective OVR
 #maximize { Amt@3, C : opt_target("salary"), sal_bonus(C, Amt) }.
