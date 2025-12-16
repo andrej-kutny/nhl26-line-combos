@@ -68,11 +68,27 @@ fwd_match(C, L, 3, P) :-
     fwd_combo(C, _, _, _, _, _, _, T3, K3),
     matches(P, T3, K3).
 
-fwd_cond_ok(C, L, I) :- 1 <= #count { P : fwd_match(C, L, I, P) }, I = 1..3.
-fwd_pair_ok(C, L, 1, 2) :- 2 <= #count { P : fwd_match(C, L, 1, P); P : fwd_match(C, L, 2, P) }.
-fwd_pair_ok(C, L, 1, 3) :- 2 <= #count { P : fwd_match(C, L, 1, P); P : fwd_match(C, L, 3, P) }.
-fwd_pair_ok(C, L, 2, 3) :- 2 <= #count { P : fwd_match(C, L, 2, P); P : fwd_match(C, L, 3, P) }.
-fwd_triple_ok(C, L) :- 3 <= #count { P : fwd_match(C, L, 1, P); P : fwd_match(C, L, 2, P); P : fwd_match(C, L, 3, P) }.
+fwd_cond_ok(C, L, I) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    fwd_line(L, _, _, _),
+    1 <= #count { P : fwd_match(C, L, I, P) },
+    I = 1..3.
+fwd_pair_ok(C, L, 1, 2) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    fwd_line(L, _, _, _),
+    2 <= #count { P : fwd_match(C, L, 1, P); P : fwd_match(C, L, 2, P) }.
+fwd_pair_ok(C, L, 1, 3) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    fwd_line(L, _, _, _),
+    2 <= #count { P : fwd_match(C, L, 1, P); P : fwd_match(C, L, 3, P) }.
+fwd_pair_ok(C, L, 2, 3) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    fwd_line(L, _, _, _),
+    2 <= #count { P : fwd_match(C, L, 2, P); P : fwd_match(C, L, 3, P) }.
+fwd_triple_ok(C, L) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    fwd_line(L, _, _, _),
+    3 <= #count { P : fwd_match(C, L, 1, P); P : fwd_match(C, L, 2, P); P : fwd_match(C, L, 3, P) }.
 
 combo_active_fwd_in_line(C, L) :-
     fwd_combo(C, _, _, _, _, _, _, _, _),
@@ -101,8 +117,15 @@ def_match(C, L, 2, P) :-
     def_combo(C, _, _, _, _, T2, K2),
     matches(P, T2, K2).
 
-def_cond_ok(C, L, I) :- 1 <= #count { P : def_match(C, L, I, P) }, I = 1..2.
-def_union_ok(C, L) :- 2 <= #count { P : def_match(C, L, 1, P); P : def_match(C, L, 2, P) }.
+def_cond_ok(C, L, I) :-
+    def_combo(C, _, _, _, _, _, _),
+    def_line(L, _, _),
+    1 <= #count { P : def_match(C, L, I, P) },
+    I = 1..2.
+def_union_ok(C, L) :-
+    def_combo(C, _, _, _, _, _, _),
+    def_line(L, _, _),
+    2 <= #count { P : def_match(C, L, 1, P); P : def_match(C, L, 2, P) }.
 
 combo_active_def_in_pair(C, L) :-
     def_combo(C, _, _, _, _, _, _),

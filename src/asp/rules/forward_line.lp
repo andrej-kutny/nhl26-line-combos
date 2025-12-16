@@ -42,13 +42,24 @@ match_cond(C, 3, P) :-
     fwd_combo(C, _, _, _, _, _, _, T3, K3),
     matches(P, T3, K3).
 
-cond_ok(C, I) :- 1 <= #count { P : match_cond(C, I, P) }, I = 1..3.
+cond_ok(C, I) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    1 <= #count { P : match_cond(C, I, P) },
+    I = 1..3.
 
-pair_ok(C, 1, 2) :- 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
-pair_ok(C, 1, 3) :- 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 3, P) }.
-pair_ok(C, 2, 3) :- 2 <= #count { P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
+pair_ok(C, 1, 2) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
+pair_ok(C, 1, 3) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 3, P) }.
+pair_ok(C, 2, 3) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    2 <= #count { P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
 
-triple_ok(C) :- 3 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
+triple_ok(C) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    3 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
 
 combo_active(C) :-
     fwd_combo(C, _, _, _, _, _, _, _, _),

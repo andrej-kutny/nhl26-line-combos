@@ -30,8 +30,13 @@ match_cond(C, 2, P) :-
     def_combo(C, _, _, _, _, T2, K2),
     matches(P, T2, K2).
 
-cond_ok(C, I) :- 1 <= #count { P : match_cond(C, I, P) }, I = 1..2.
-union_ok(C) :- 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
+cond_ok(C, I) :-
+    def_combo(C, _, _, _, _, _, _),
+    1 <= #count { P : match_cond(C, I, P) },
+    I = 1..2.
+union_ok(C) :-
+    def_combo(C, _, _, _, _, _, _),
+    2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
 
 combo_active(C) :- def_combo(C, _, _, _, _, _, _), cond_ok(C, 1), cond_ok(C, 2), union_ok(C).
 
