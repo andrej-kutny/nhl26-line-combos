@@ -24,10 +24,12 @@ class Position(str, Enum):
     FORWARD = "FWD"
     DEFENSE = "DEF"
     GOALIE = "G"
-    # Specific forward positions (if available in data)
+    # Specific skater positions (available in the extended dataset as `position`)
     CENTER = "C"
     LEFT_WING = "LW"
     RIGHT_WING = "RW"
+    LEFT_DEFENSE = "LD"
+    RIGHT_DEFENSE = "RD"
 
 
 class RewardType(str, Enum):
@@ -50,14 +52,21 @@ class ConditionType(str, Enum):
 
 class PlayerBase(BaseModel):
     """Base model for all player types."""
-    id: int = Field(..., description="Unique player ID")
+    id: str = Field(..., description="Unique card ID (per card; can be UUID or RowID)")
+    player_id: int = Field(..., description="Canonical player ID (shared across a player's cards)")
     first_name: str = Field("", description="Player's first name")
     last_name: str = Field("", description="Player's last name")
+    sub_position: Optional[str] = Field(
+        default=None,
+        description="Specific on-ice position (e.g., C/LW/RW/LD/RD).",
+    )
     event: str = Field(..., description="Card event/release type (e.g., ICON, HH, CAP)")
     overall: int = Field(..., ge=1, le=99, description="Overall rating (OVR)")
     nationality: str = Field(..., description="Player nationality")
     league: str = Field(..., description="League (NHL, NHLAA, etc.)")
     team: str = Field(..., description="Team abbreviation")
+    salary: Optional[float] = Field(default=None, description="Salary in millions (e.g., 10.5)")
+    ability_points: Optional[int] = Field(default=None, description="Ability points cost (if available)")
     
     @property
     def full_name(self) -> str:
@@ -180,10 +189,13 @@ class OptimizationConstraints(BaseModel):
     then converted to ASP constraints by the solver.
     """
     min_ovr: int = Field(default=0, ge=0, le=99, description="Minimum player OVR")
-    max_salary: Optional[int] = Field(default=None, description="Maximum total salary")
+    max_salary: Optional[float] = Field(default=None, description="Maximum total salary (millions)")
     max_ap: Optional[int] = Field(default=None, description="Maximum ability points")
     require_center: bool = Field(default=False, description="Require at least one center")
-    excluded_player_ids: list[int] = Field(default_factory=list, description="Player IDs to exclude")
+    excluded_player_ids: list[str] = Field(
+        default_factory=list,
+        description="Card IDs to exclude (card_id values).",
+    )
     required_team: Optional[str] = Field(default=None, description="All players must be from this team")
     required_nationality: Optional[str] = Field(default=None, description="All players must have this nationality")
     required_event: Optional[str] = Field(default=None, description="All players must be from this event")
@@ -219,7 +231,7 @@ class LineSolution(BaseModel):
     total_base_ovr: int = Field(..., description="Sum of player OVRs")
     ovr_bonus: int = Field(default=0, description="OVR bonus from combos")
     effective_ovr: int = Field(..., description="total_base_ovr + ovr_bonus")
-    total_salary: int = Field(default=0, description="Total salary")
+    total_salary: float = Field(default=0.0, description="Total salary (millions)")
     total_ap: int = Field(default=0, description="Total ability points")
     active_combos: list[ActiveCombo] = Field(default_factory=list)
 
@@ -231,4 +243,3 @@ class OptimizationResponse(BaseModel):
     solutions: list[LineSolution] = Field(default_factory=list)
     computation_time_ms: int = Field(default=0, description="Time taken in milliseconds")
     candidates_evaluated: int = Field(default=0, description="Number of candidates considered")
-
