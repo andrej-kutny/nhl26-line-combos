@@ -1,5 +1,17 @@
 """Quick check of how many combos are activatable with current data."""
 
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Allow running this script via `python nhl26-line-combos/scripts/check_combo_activation.py`
+# (or from inside the repo as `python scripts/check_combo_activation.py`) without having to
+# manually set PYTHONPATH.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from src.core.data_loader import get_data_loader
 
 

@@ -10,8 +10,15 @@ pick the cheapest distinct players that satisfy the conditions and report:
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional
+
+# Allow running this script directly without requiring manual PYTHONPATH tweaks.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from src.core.data_loader import get_data_loader
 from src.core.models import ComboCondition, ForwardLineCombo, DefenseLineCombo
