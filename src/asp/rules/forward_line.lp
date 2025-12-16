@@ -1,5 +1,10 @@
 % Forward line optimization (3 players).
-
+%
+% Semantics (aligned with gameplay notes):
+% - A line can activate 0..N different combos at the same time.
+% - A combo activates iff its conditions can be matched injectively to the
+%   selected players (i.e., 3 distinct players cover 3 conditions).
+%
 % Combo facts:
 %   fwd_combo(ComboID, RewardAmt, RewardType, T1, K1, T2, K2, T3, K3).
 % RewardType is an atom: ovr | sal | ap
@@ -16,30 +21,40 @@
 :- select(P1, 1), select(P2, 2), P1 > P2.
 :- select(P2, 2), select(P3, 3), P2 > P3.
 
-% At most one line combo can be activated at a time.
-% Restrict which combo types we consider based on the optimization target to
-% keep the search space small.
-0 { use_combo(C) : fwd_combo(C, _, ovr, _, _, _, _, _, _) } 1 :- opt_target("ovr").
-0 { use_combo(C) : fwd_combo(C, _, sal, _, _, _, _, _, _) } 1 :- opt_target("salary").
-0 { use_combo(C) : fwd_combo(C, _, ap,  _, _, _, _, _, _) } 1 :- opt_target("ap").
-0 { use_combo(C) : fwd_combo(C, _, _,   _, _, _, _, _, _) } 1 :- opt_target("balanced").
+in_line(P) :- select(P, _).
 
-% Combo activation as a small assignment problem.
+% Combo activation without grounding a (P1,P2,P3) cross-product.
 %
-% We assign each of the 3 combo conditions to a distinct selected player.
-% This avoids an expensive grounding cross-product over (P1,P2,P3) tuples.
-1 { assign(C, 1, P) : select(P, _), matches(P, T1, K1) } 1 :-
-    use_combo(C), fwd_combo(C, _, _, T1, K1, _, _, _, _).
-1 { assign(C, 2, P) : select(P, _), matches(P, T2, K2) } 1 :-
-    use_combo(C), fwd_combo(C, _, _, _, _, T2, K2, _, _).
-1 { assign(C, 3, P) : select(P, _), matches(P, T3, K3) } 1 :-
-    use_combo(C), fwd_combo(C, _, _, _, _, _, _, T3, K3).
+% For |conditions|=|players|=3 we can use Hall's marriage theorem:
+% a perfect matching exists iff every subset of conditions is covered by at
+% least that many distinct players.
 
-:- assign(C, 1, P), assign(C, 2, P).
-:- assign(C, 1, P), assign(C, 3, P).
-:- assign(C, 2, P), assign(C, 3, P).
+match_cond(C, 1, P) :-
+    in_line(P),
+    fwd_combo(C, _, _, T1, K1, _, _, _, _),
+    matches(P, T1, K1).
+match_cond(C, 2, P) :-
+    in_line(P),
+    fwd_combo(C, _, _, _, _, T2, K2, _, _),
+    matches(P, T2, K2).
+match_cond(C, 3, P) :-
+    in_line(P),
+    fwd_combo(C, _, _, _, _, _, _, T3, K3),
+    matches(P, T3, K3).
 
-combo_active(C) :- use_combo(C), assign(C, 1, _), assign(C, 2, _), assign(C, 3, _).
+cond_ok(C, I) :- 1 <= #count { P : match_cond(C, I, P) }, I = 1..3.
+
+pair_ok(C, 1, 2) :- 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
+pair_ok(C, 1, 3) :- 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 3, P) }.
+pair_ok(C, 2, 3) :- 2 <= #count { P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
+
+triple_ok(C) :- 3 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
+
+combo_active(C) :-
+    fwd_combo(C, _, _, _, _, _, _, _, _),
+    cond_ok(C, 1), cond_ok(C, 2), cond_ok(C, 3),
+    pair_ok(C, 1, 2), pair_ok(C, 1, 3), pair_ok(C, 2, 3),
+    triple_ok(C).
 
 ovr_bonus(C, Amt) :- combo_active(C), fwd_combo(C, Amt, ovr, _, _, _, _, _, _).
 sal_bonus(C, Amt) :- combo_active(C), fwd_combo(C, Amt, sal, _, _, _, _, _, _).

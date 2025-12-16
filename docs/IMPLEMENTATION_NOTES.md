@@ -18,7 +18,8 @@ Solver/runtime choices
 - Symbol handling: collect `model.symbols(shown=True)` to avoid use-after-free.
 - Full-team pruning (to keep the search tractable):
   - FWD candidates: ~24, DEF: ~14, G: ~4 (sorted by OVR).
-  - Each combo ID can activate at most once globally.
+  - Each combo ID can activate at most once globally (team-wide).
+  - A single line/pair can activate 0..N different combos simultaneously (and all such bonuses apply).
 - Response times: forward/defense are interactive with candidate pruning; full-team still depends heavily on caps.
 
 Optimization targets and constraints
@@ -27,8 +28,10 @@ Optimization targets and constraints
   - Salary “cap” is treated as an effective cap: `total_salary - salary_bonus <= max_salary` (SAL bonuses increase budget).
   - AP cap is treated analogously: `total_ap - ap_bonus <= max_ap`.
 - Targets:
-  - `ovr`: maximize base OVR + OVR bonus (restricted to at most one OVR combo per line to keep the search stable).
-  - `salary`, `ap`, `balanced`: bonus-first modes. We assume at most one combo can be activated per line, and we evaluate top combos first (forced `use_combo/1`) to avoid expensive global optimality proofs.
+  - `ovr`: maximize base OVR + total OVR bonus from all activated combos.
+  - `salary`: maximize total SAL bonus first; then maximize effective OVR.
+  - `ap`: maximize total AP bonus first; then maximize effective OVR.
+  - `balanced`: maximize total bonuses (SAL/AP/OVR); then maximize base OVR.
 - Effective salary/AP in responses: `total_salary - salary_bonus`, `total_ap - ap_bonus`. No SAL/AP objectives yet; they can be added when real values/requirements are set.
 
 API quick-checks (venv311)
@@ -39,8 +42,8 @@ API quick-checks (venv311)
 
 Combo activation sanity check
 -----------------------------
-- Script: `python -m scripts.check_combo_activation` prints how many forward/defense combos can currently activate with the loaded dataset.
-- Current state with scraped v3 combos vs extended dataset: 18/68 forward, 27/71 defense activate (because many `type=CARD` keys don’t map to our `card_id` UUIDs). Once matching combo files arrive, rerun the script to verify higher activation rates and re-test the API.
+- Script: `python scripts/check_combo_activation.py` prints how many forward/defense combos can currently activate with the loaded dataset.
+- With the nhlhutbuilder-based player snapshot and v3 combos, we currently see ~55/68 forward and ~56/71 defense combos activatable (the loader normalizes `type=CARD` to `event` codes such as `GM`, `FANT`, etc.).
 
 Fresh player data from nhlhutbuilder
 ------------------------------------
@@ -52,10 +55,9 @@ Fresh player data from nhlhutbuilder
 
 Known limitations / next swaps
 ------------------------------
-- Sub-positions, salary, AP are synthetic; replace the override file when real data is available.
+- Salary and most attributes are pulled from nhlhutbuilder; `ability_points` is still not available in the player snapshot and remains unset.
 - Event codes in combos are raw filenames from the scrape; can be mapped to human-readable names later.
-- SAL/AP are included as constraints/bonuses, but not in the objective yet.
-- `require_center` relies on synthetic sub-positions; real C/LW/RW are needed for accuracy.
+- `require_center` relies on `sub_position` derived from the per-card position (C/LW/RW) in the player snapshot.
 
 How to swap in real data
 ------------------------

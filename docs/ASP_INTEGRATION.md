@@ -31,7 +31,10 @@ The solver generates a minimal “world description” as facts and combines it 
 - Optional numeric attributes: `salary(CardID, SalaryM).` and `ap(CardID, AP).`
 - Combo facts: `fwd_combo(...)` and `def_combo(...)`
 - Target selector: `opt_target("ovr"|"salary"|"ap"|"balanced").`
-- Optional combo forcing: `use_combo(ComboID).` (used for bonus-oriented modes to avoid expensive global optimality proofs)
+
+Combos are treated as “auto-activating”: if the selected players satisfy a combo’s
+conditions (with an injective match from conditions → players), that combo’s bonus
+is applied. A single line/pair may activate 0..N different combos simultaneously.
 
 ## Step 1: Understand the Data
 

@@ -13,22 +13,27 @@
 % Symmetry breaking: slot order is irrelevant for constraints/objective here.
 :- select(P1, 1), select(P2, 2), P1 > P2.
 
-% At most one pair combo can be activated at a time.
-% Restrict which combo types we consider based on the optimization target.
-0 { use_combo(C) : def_combo(C, _, ovr, _, _, _, _) } 1 :- opt_target("ovr").
-0 { use_combo(C) : def_combo(C, _, sal, _, _, _, _) } 1 :- opt_target("salary").
-0 { use_combo(C) : def_combo(C, _, ap,  _, _, _, _) } 1 :- opt_target("ap").
-0 { use_combo(C) : def_combo(C, _, _,   _, _, _, _) } 1 :- opt_target("balanced").
+in_pair(P) :- select(P, _).
 
-% Combo activation as a small assignment problem (2 conditions → 2 players).
-1 { assign(C, 1, P) : select(P, _), matches(P, T1, K1) } 1 :-
-    use_combo(C), def_combo(C, _, _, T1, K1, _, _).
-1 { assign(C, 2, P) : select(P, _), matches(P, T2, K2) } 1 :-
-    use_combo(C), def_combo(C, _, _, _, _, T2, K2).
+% Combo activation without grounding a (P1,P2) cross-product.
+%
+% For |conditions|=|players|=2, a perfect matching exists iff:
+% - each condition matches at least one selected player, and
+% - the union of players matching either condition has size >= 2.
 
-:- assign(C, 1, P), assign(C, 2, P).
+match_cond(C, 1, P) :-
+    in_pair(P),
+    def_combo(C, _, _, T1, K1, _, _),
+    matches(P, T1, K1).
+match_cond(C, 2, P) :-
+    in_pair(P),
+    def_combo(C, _, _, _, _, T2, K2),
+    matches(P, T2, K2).
 
-combo_active(C) :- use_combo(C), assign(C, 1, _), assign(C, 2, _).
+cond_ok(C, I) :- 1 <= #count { P : match_cond(C, I, P) }, I = 1..2.
+union_ok(C) :- 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
+
+combo_active(C) :- def_combo(C, _, _, _, _, _, _), cond_ok(C, 1), cond_ok(C, 2), union_ok(C).
 
 ovr_bonus(C, Amt) :- combo_active(C), def_combo(C, Amt, ovr, _, _, _, _).
 sal_bonus(C, Amt) :- combo_active(C), def_combo(C, Amt, sal, _, _, _, _).
