@@ -36,6 +36,12 @@ def main() -> int:
     parser.add_argument("--target", choices=["ovr", "salary", "ap", "balanced"], default="ovr")
     parser.add_argument("--num-solutions", type=int, default=1)
     parser.add_argument("--time-limit-seconds", type=int, default=7200)
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=1,
+        help="Clingo parallel threads (uses --parallel-mode N). Use >1 to utilize multiple CPU cores.",
+    )
     parser.add_argument("--max-fwd", type=int, default=24)
     parser.add_argument("--max-def", type=int, default=14)
     parser.add_argument("--max-g", type=int, default=4)
@@ -48,6 +54,7 @@ def main() -> int:
     args = parser.parse_args()
 
     solver = ASPSolver(
+        clingo_threads=args.threads,
         max_fullteam_forwards=args.max_fwd,
         max_fullteam_defense=args.max_def,
         max_fullteam_goalies=args.max_g,
@@ -94,4 +101,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

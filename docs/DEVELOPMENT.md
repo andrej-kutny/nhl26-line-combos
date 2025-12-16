@@ -110,7 +110,22 @@ For long experiments (e.g., 30–120 minutes), use the offline runner which:
 ```bash
 cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
 source venv/bin/activate
-python scripts/run_full_team_offline.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 7200 --max-fwd 24 --max-def 14 --max-g 4 --json-out out/full_team_solution.json
+python scripts/run_full_team_offline.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 7200 --threads 4 --max-fwd 24 --max-def 14 --max-g 4 --json-out out/full_team_solution.json
+```
+
+### Stepwise scaling (recommended)
+
+If a full-team run becomes impractically slow, scale the candidate caps gradually and observe where runtime starts to explode.
+The goal is to keep the search space just large enough to find good solutions without turning the solve into an hours-long run.
+
+Example progression (same constraints/target, increasing caps):
+
+```bash
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+python scripts/run_full_team_offline.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 1800 --threads 4 --max-fwd 24 --max-def 14 --max-g 4 --json-out out/full_team_24_14_4.json
+python scripts/run_full_team_offline.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 1800 --threads 4 --max-fwd 32 --max-def 18 --max-g 6 --json-out out/full_team_32_18_6.json
+python scripts/run_full_team_offline.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 1800 --threads 4 --max-fwd 40 --max-def 24 --max-g 8 --json-out out/full_team_40_24_8.json
 ```
 
 ### Access Points
