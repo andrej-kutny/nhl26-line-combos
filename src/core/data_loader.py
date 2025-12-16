@@ -148,9 +148,9 @@ class DataLoader:
                 last_name=last_name,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                nationality=str(row["nationality"]).strip(),
+                league=str(row["league"]).strip(),
+                team=str(row["team"]).strip(),
             )
             players.append(player)
         
@@ -177,9 +177,9 @@ class DataLoader:
                 last_name=last_name,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                nationality=str(row["nationality"]).strip(),
+                league=str(row["league"]).strip(),
+                team=str(row["team"]).strip(),
             )
             players.append(player)
         
@@ -206,9 +206,9 @@ class DataLoader:
                 last_name=last_name,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                nationality=str(row["nationality"]).strip(),
+                league=str(row["league"]).strip(),
+                team=str(row["team"]).strip(),
             )
             players.append(player)
         
@@ -394,12 +394,12 @@ class DataLoader:
         def_combos = self.get_defense_combos()
         
         # Get unique values
-        all_teams = set()
+        all_team = set()
         all_nationalities = set()
         all_events = set()
         
         for player in forwards + defense + goalies:
-            all_teams.add(player.team)
+            all_team.add(player.team)
             all_nationalities.add(player.nationality)
             all_events.add(player.event)
         
@@ -420,10 +420,10 @@ class DataLoader:
                 "defense_combos": len(def_combos),
                 "total": len(fwd_combos) + len(def_combos),
             },
-            "teams": sorted(list(all_teams)),
+            "team": sorted(list(all_team)),
             "nationalities": sorted(list(all_nationalities)),
             "events": sorted(list(all_events)),
-            "team_count": len(all_teams),
+            "team_count": len(all_team),
             "nationality_count": len(all_nationalities),
             "event_count": len(all_events),
         }
