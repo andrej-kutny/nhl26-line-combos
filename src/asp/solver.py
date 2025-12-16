@@ -160,6 +160,7 @@ class ASPSolver:
         constraints: OptimizationConstraints,
         target: OptimizationTarget,
         num_solutions: int = 5,
+        time_limit_seconds: int | None = None,
     ) -> list[LineSolution]:
         forwards = self.loader.get_forwards()
         defense = self.loader.get_defense()
@@ -225,6 +226,7 @@ class ASPSolver:
             program,
             num_solutions=num_solutions,
             model_limit=self._model_limit(target=target, is_full_team=True),
+            time_limit_seconds=time_limit_seconds,
         )
         return [
             self._parse_full_team_model(
@@ -655,6 +657,7 @@ class ASPSolver:
         *,
         num_solutions: int,
         model_limit: int | None = None,
+        time_limit_seconds: int | None = None,
     ) -> list[list]:
         if not self.is_available():
             raise RuntimeError(
@@ -665,7 +668,10 @@ class ASPSolver:
 
         import clingo  # type: ignore
 
-        ctl = clingo.Control(["--warn=none", "--opt-mode=optN"])
+        ctl_args = ["--warn=none", "--opt-mode=optN"]
+        if time_limit_seconds is not None:
+            ctl_args.append(f"--time-limit={int(time_limit_seconds)}")
+        ctl = clingo.Control(ctl_args)
         if model_limit is not None:
             ctl.configuration.solve.solve_limit = str(int(model_limit))
         ctl.add("base", [], program)

@@ -96,6 +96,23 @@ curl -m 30 -sS http://127.0.0.1:8000/optimize/forward-line -H "Content-Type: app
 
 The `salary` target is intended to surface strong SAL bonuses (e.g., `FANT+FANT+FANT -> +20 SAL`) while staying under the effective cap.
 
+### Offline full-team runs (recommended for long searches)
+
+Full-team optimization can be large enough that interactive API calls time out on the client side (or tie up the dev server for too long).
+For long experiments (e.g., 30–120 minutes), use the offline runner which:
+- runs locally (no FastAPI request/response timeout),
+- uses explicit candidate-pool caps (`--max-fwd/--max-def/--max-g`),
+- enforces an explicit Clingo time limit (`--time-limit-seconds`),
+- writes results to a JSON file for later inspection.
+
+**Tab T4 (offline full-team runner, e.g. 2 hours)**
+
+```bash
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+python scripts/run_full_team_offline.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 7200 --max-fwd 24 --max-def 14 --max-g 4 --json-out out/full_team_solution.json
+```
+
 ### Access Points
 
 | Resource | URL |
