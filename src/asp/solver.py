@@ -27,6 +27,7 @@ class ASPSolver:
     def __init__(
         self,
         *,
+        clingo_threads: int = 1,
         max_candidates_total: int = 350,
         max_candidates_global: int = 200,
         max_candidates_per_condition: int = 25,
@@ -35,6 +36,7 @@ class ASPSolver:
         max_fullteam_goalies: int = 4,
     ) -> None:
         self.loader = get_data_loader()
+        self.clingo_threads = max(1, int(clingo_threads))
         self.max_candidates_total = max_candidates_total
         self.max_candidates_global = max_candidates_global
         self.max_candidates_per_condition = max_candidates_per_condition
@@ -668,7 +670,11 @@ class ASPSolver:
 
         import clingo  # type: ignore
 
-        ctl_args = ["--warn=none", "--opt-mode=optN"]
+        ctl_args = [
+            "--warn=none",
+            "--opt-mode=optN",
+            f"--parallel-mode={int(self.clingo_threads)}",
+        ]
         if time_limit_seconds is not None:
             ctl_args.append(f"--time-limit={int(time_limit_seconds)}")
         ctl = clingo.Control(ctl_args)
@@ -718,9 +724,13 @@ class ASPSolver:
         import clingo  # type: ignore
 
         if max_models == 0:
-            ctl = clingo.Control(["--warn=none", "--models=0"])
+            ctl = clingo.Control(
+                ["--warn=none", "--models=0", f"--parallel-mode={int(self.clingo_threads)}"]
+            )
         else:
-            ctl = clingo.Control(["--warn=none", f"--models={int(max_models)}"])
+            ctl = clingo.Control(
+                ["--warn=none", f"--models={int(max_models)}", f"--parallel-mode={int(self.clingo_threads)}"]
+            )
 
         if model_limit is not None:
             ctl.configuration.solve.solve_limit = str(int(model_limit))
