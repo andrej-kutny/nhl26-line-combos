@@ -46,6 +46,8 @@ Triggered when **new players** are added or **new line combinations** are added.
 - **Feasibility filter**:
   - After ASP suggests high-value combo candidates, filter them down to only combos that are **actually fulfillable** by the currently available player cards (i.e., each combo condition has matching candidate cards).
 
+For the detailed Goal 1 pipeline (two-stage ASP + SQLite grounding), see [docs/GOAL_1.md](docs/GOAL_1.md).
+
 ### Goal 2 — Suggest lines based on user filters (interactive)
 
 Create line suggestions based on user constraints, including:

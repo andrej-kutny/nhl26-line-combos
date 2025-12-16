@@ -11,6 +11,7 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 ### Architecture & Design
 - [System Architecture](ARCHITECTURE.md) - How the system is structured
 - [Data Models](DATA_MODELS.md) - Player, combo, and API models
+- [Goal 1](GOAL_1.md) - Goal 1 pipeline (abstract combo optimization → player grounding)
 
 ### API Documentation
 - [Swagger UI](http://localhost:8000/docs) - Interactive API docs (when server running)
