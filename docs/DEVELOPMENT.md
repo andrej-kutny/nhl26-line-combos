@@ -1,10 +1,10 @@
 # Development Guide
 
-This guide covers setting up the development environment and running tests..
+This guide covers setting up the development environment, running the API, and executing tests.
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+ (recommended; Clingo wheels can be fragile on very new Python versions)
 - pip
 - Git
 
@@ -54,13 +54,47 @@ python -c "from src.core.data_loader import get_data_loader; print(get_data_load
 ## Running the Server
 
 ```bash
-# With auto-reload
 uvicorn src.api.main:app --reload --port 8000
-
-# Or using Python module
-python -m uvicorn src.api.main:app --reload --port 8000
 ```
 
+### macOS workflow (Terminal tabs)
+
+When Clingo is solving, a single-worker dev server can appear “frozen” because the request is CPU-bound.
+For interactive debugging, use multiple workers and run a dedicated health-check in a separate Terminal tab.
+
+**Tab T1 (start API on port 8000)**
+
+```bash
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+lsof -nP -iTCP:8000 -sTCP:LISTEN
+kill -9 <PID>
+uvicorn src.api.main:app --host 127.0.0.1 --port 8000 --workers 2 --log-level warning
+```
+
+Replace `<PID>` with the numeric PID printed by `lsof`.
+
+**Tab T2 (health-check)**
+
+```bash
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+curl -m 5 -sS http://127.0.0.1:8000/docs -o /dev/null
+echo $?
+```
+
+An exit code `0` means the server responded within the timeout.
+
+**Tab T3 (forward line examples)**
+
+```bash
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+curl -m 30 -sS http://127.0.0.1:8000/optimize/forward-line -H "Content-Type: application/json" -d '{"constraints":{"min_ovr":90,"require_center":false,"max_salary":110},"optimization_target":"ovr","num_solutions":1}' | python3 -m json.tool
+curl -m 30 -sS http://127.0.0.1:8000/optimize/forward-line -H "Content-Type: application/json" -d '{"constraints":{"min_ovr":80,"require_center":false,"max_salary":110},"optimization_target":"salary","num_solutions":1}' | python3 -m json.tool
+```
+
+The `salary` target is intended to surface strong SAL bonuses (e.g., `FANT+FANT+FANT -> +20 SAL`) while staying under the effective cap.
 
 ### Access Points
 
@@ -375,4 +409,3 @@ refactor: Simplify filter logic
 - [Architecture](ARCHITECTURE.md) - System design
 - [ASP Integration](ASP_INTEGRATION.md) - ASP team guide
 - [Frontend Integration](FRONTEND_INTEGRATION.md) - Frontend guide
-

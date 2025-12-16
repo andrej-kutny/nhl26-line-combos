@@ -1,14 +1,16 @@
 # ASP Team Integration Guide
 
-This guide explains how to integrate the Clingo ASP solver with the API.
+This guide explains how the Clingo ASP solver is integrated with the API and how to extend it.
 
 ## Overview
 
-The API is already set up with placeholder endpoints. Your job is to:
+The core integration is in place:
 
-1. Implement the ASP solver in `src/asp/solver.py`
-2. Write ASP rules for optimization in `src/asp/rules/`
-3. Replace the placeholder solver with your implementation
+1. `src/api/routes/optimize.py` calls `src/asp/solver.py`
+2. `src/asp/solver.py` loads data via `src/core/data_loader.py`, generates ASP facts, and runs Clingo
+3. Rules live in `src/asp/rules/` (forward line, defense pair, full team)
+
+In practice, most iteration happens in the ASP rule files (constraints and objectives) and in candidate filtering (to keep the search space tractable).
 
 ## Architecture
 
@@ -19,6 +21,17 @@ API Request → optimize.py → ASPSolver → Clingo → ASPSolver → API Respo
                                ↓
                            CSV Files
 ```
+
+## Current implementation (what exists today)
+
+The solver generates a minimal “world description” as facts and combines it with rule files:
+
+- Player facts: `player(CardID, OVR, Team, Nationality, Event).`
+- Duplicate prevention: `card_player(CardID, PlayerID).` plus a rule in `base.lp` forbidding selecting two cards with the same `PlayerID`.
+- Optional numeric attributes: `salary(CardID, SalaryM).` and `ap(CardID, AP).`
+- Combo facts: `fwd_combo(...)` and `def_combo(...)`
+- Target selector: `opt_target("ovr"|"salary"|"ap"|"balanced").`
+- Optional combo forcing: `use_combo(ComboID).` (used for bonus-oriented modes to avoid expensive global optimality proofs)
 
 ## Step 1: Understand the Data
 
@@ -84,7 +97,8 @@ matching = loader.get_players_matching_combo_condition(forwards, condition)
 
 ## Step 2: Generate ASP Facts
 
-Convert the data to ASP facts. Create `src/asp/facts_generator.py`:
+Facts are generated inside `src/asp/solver.py` in the current codebase.
+The code below is a pedagogical sketch and may diverge from the actual implementation.
 
 ```python
 from src.core.data_loader import get_data_loader
@@ -201,7 +215,8 @@ total_ovr_bonus(Bonus) :-
 
 ## Step 4: Implement the Solver
 
-Create `src/asp/solver.py`:
+The solver already exists in `src/asp/solver.py`.
+This section is kept for historical context and as a minimal example of how a Clingo wrapper can look.
 
 ```python
 import clingo
@@ -461,4 +476,3 @@ Contact the API team if you need:
 - Changes to data models
 - New API endpoints
 - Different data formats
-

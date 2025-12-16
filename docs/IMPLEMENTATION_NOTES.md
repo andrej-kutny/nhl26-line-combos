@@ -14,7 +14,7 @@ Data sources and placeholders
 
 Solver/runtime choices
 ----------------------
-- Environment: Python 3.11 (3.13 is not recommended for clingo). On macOS we keep this in a local `venv/`.
+- Environment: Python 3.11 is recommended on macOS. Very new Python versions can break Clingo wheels; treat 3.11 as the “stable baseline” for the project.
 - Symbol handling: collect `model.symbols(shown=True)` to avoid use-after-free.
 - Full-team pruning (to keep the search tractable):
   - FWD candidates: ~24, DEF: ~14, G: ~4 (sorted by OVR).
