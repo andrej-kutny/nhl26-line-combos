@@ -54,7 +54,7 @@ Create line suggestions based on user constraints, including:
 
 - **Already-used players** (exclude them from results)
 - **Per-slot constraints** (planned extension):
-  - Fixed card (specific `card_id`)
+  - Fixed card (specific card `id`)
   - Fixed player (by `player_id`, wildcard card selection)
   - Min/max overall (and potentially other attributes)
 - **Team constraints**:

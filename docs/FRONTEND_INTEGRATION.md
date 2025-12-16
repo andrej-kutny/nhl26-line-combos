@@ -92,11 +92,11 @@ Use `/players/lookup` to build dynamic dropdowns that match your UX requirement:
 - player mode label: `"{First} {Last} *"`
 
 ```javascript
-// Card-level options (choose by card_id)
+// Card-level options (choose by card id)
 // GET /players/lookup?q=gretzky&mode=card&position=FWD
 const cards = await fetch('http://localhost:8000/players/lookup?q=gretzky&mode=card&position=FWD').then(r => r.json());
 
-// Player-level options (choose by player_id wildcard)
+// Player-level options (choose by player_id for any card)
 // GET /players/lookup?q=gretzky&mode=player
 const players = await fetch('http://localhost:8000/players/lookup?q=gretzky&mode=player').then(r => r.json());
 ```
@@ -236,30 +236,31 @@ If using TypeScript, here are the main types:
 
 ```typescript
 interface Player {
-  id: number;
+  id: number;  // unique card ID (auto-increment)
+  player_id: number;  // real player ID (shared across cards)
   first_name: string;
   last_name: string;
-  card_id?: string | null;
-  card_img?: string | null;
-  card_position?: string | null;
-  salary?: number | null;
+  img: string;
+  position?: string;
+  salary: number;
   event: string;
   overall: number;
   nationality: string;
   league: string;
   team: string;
+  weight: number;
+  height: number;
   position: 'FWD' | 'DEF' | 'G';
 }
 
 interface LookupOption {
-  value: string | number;
-  value_type: 'card_id' | 'player_id';
+  value: number;  // either card id or player_id
+  value_type: 'card' | 'player';
   player_id: number;
-  card_id?: string | null;
   position: 'FWD' | 'DEF' | 'G';
   overall: number;
   event: string;
-  card_position?: string | null;
+  position?: string;
   label: string;
 }
 

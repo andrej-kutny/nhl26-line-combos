@@ -5,8 +5,9 @@ These models represent the domain entities used throughout the application.
 All teams (API, ASP, Frontend) should use these models for consistency.
 
 Data Structure Reference:
-- Players have: event, overall (OVR), nationality, league, team, position, ID
-- Line combos have: reward_amount, reward_type (OVR/SAL/AP), conditions (type/key pairs)
+- Players have: id (auto-increment), player_id, event, overall (OVR), nationality, league, team, position
+- Player cards include detailed stats (different for forwards/defense/goalies)
+- Line combos have: combo_id, reward_amount, reward_type (OVR/SAL/AP), conditions (type/key pairs)
 - Forward combos require 3 players, Defense combos require 2 players
 """
 
@@ -24,10 +25,13 @@ class Position(str, Enum):
     FORWARD = "FWD"
     DEFENSE = "DEF"
     GOALIE = "G"
-    # Specific forward positions (if available in data)
+    # Specific forward positions
     CENTER = "C"
     LEFT_WING = "LW"
     RIGHT_WING = "RW"
+    # Specific defense positions
+    LEFT_DEFENSE = "LD"
+    RIGHT_DEFENSE = "RD"
 
 
 class RewardType(str, Enum):
@@ -49,15 +53,27 @@ class ConditionType(str, Enum):
 # =============================================================================
 
 class PlayerBase(BaseModel):
-    """Base model for all player types."""
-    id: int = Field(..., description="Unique player ID")
+    """Base model for all player types with common attributes."""
+    # Identity
+    id: int = Field(..., description="Database auto-increment ID (unique per card)")
+    player_id: int = Field(..., description="Player ID (shared across multiple cards)")
+    
+    # Names (resolved from lookup tables)
     first_name: str = Field("", description="Player's first name")
     last_name: str = Field("", description="Player's last name")
+    
+    # Card attributes
+    img: str = Field(..., description="Card image filename")
     event: str = Field(..., description="Card event/release type (e.g., ICON, HH, CAP)")
-    overall: int = Field(..., ge=1, le=99, description="Overall rating (OVR)")
     nationality: str = Field(..., description="Player nationality")
     league: str = Field(..., description="League (NHL, NHLAA, etc.)")
     team: str = Field(..., description="Team abbreviation")
+    
+    # Physical attributes
+    weight: float = Field(..., description="Weight in kg")
+    height: int = Field(..., description="Height in cm")
+    salary: float = Field(..., description="Salary cost")
+    overall: int = Field(..., ge=1, le=99, description="Overall rating (OVR)")
     
     @property
     def full_name(self) -> str:
@@ -90,26 +106,125 @@ class PlayerBase(BaseModel):
         return False
 
 
-class Player(PlayerBase):
-    """Generic player model (can be forward or defense)."""
-    position: Position = Field(..., description="Player position")
-
-
 class ForwardPlayer(PlayerBase):
-    """Forward player with position always set to FWD."""
-    position: Position = Field(default=Position.FORWARD, description="Always FWD")
-    # Future: Add specific position (C, LW, RW) when data is available
-    # specific_position: Optional[str] = None
+    """Forward player with offensive stats."""
+    position: str = Field(..., description="Specific position: C, LW, or RW")
+    
+    # Offensive stats
+    deking: int = Field(..., ge=1, le=99)
+    hand_eye: int = Field(..., ge=1, le=99)
+    passing: int = Field(..., ge=1, le=99)
+    puck_control: int = Field(..., ge=1, le=99)
+    slap_shot_accuracy: int = Field(..., ge=1, le=99)
+    slap_shot_power: int = Field(..., ge=1, le=99)
+    wrist_shot_accuracy: int = Field(..., ge=1, le=99)
+    wrist_shot_power: int = Field(..., ge=1, le=99)
+    
+    # Skating stats
+    acceleration: int = Field(..., ge=1, le=99)
+    agility: int = Field(..., ge=1, le=99)
+    balance: int = Field(..., ge=1, le=99)
+    endurance: int = Field(..., ge=1, le=99)
+    speed: int = Field(..., ge=1, le=99)
+    
+    # Awareness & defensive stats
+    discipline: int = Field(..., ge=1, le=99)
+    off_awareness: int = Field(..., ge=1, le=99)
+    def_awareness: int = Field(..., ge=1, le=99)
+    faceoffs: int = Field(..., ge=1, le=99)
+    shot_blocking: int = Field(..., ge=1, le=99)
+    stick_checking: int = Field(..., ge=1, le=99)
+    
+    # Physical stats
+    aggression: int = Field(..., ge=1, le=99)
+    body_checking: int = Field(..., ge=1, le=99)
+    durability: int = Field(..., ge=1, le=99)
+    fighting_skill: int = Field(..., ge=1, le=99)
+    strength: int = Field(..., ge=1, le=99)
 
 
 class DefensePlayer(PlayerBase):
-    """Defense player with position always set to DEF."""
-    position: Position = Field(default=Position.DEFENSE, description="Always DEF")
+    """Defense player with defensive stats."""
+    position: str = Field(..., description="Specific position: LD or RD")
+    
+    # Offensive stats (same as forwards)
+    deking: int = Field(..., ge=1, le=99)
+    hand_eye: int = Field(..., ge=1, le=99)
+    passing: int = Field(..., ge=1, le=99)
+    puck_control: int = Field(..., ge=1, le=99)
+    slap_shot_accuracy: int = Field(..., ge=1, le=99)
+    slap_shot_power: int = Field(..., ge=1, le=99)
+    wrist_shot_accuracy: int = Field(..., ge=1, le=99)
+    wrist_shot_power: int = Field(..., ge=1, le=99)
+    
+    # Skating stats
+    acceleration: int = Field(..., ge=1, le=99)
+    agility: int = Field(..., ge=1, le=99)
+    balance: int = Field(..., ge=1, le=99)
+    endurance: int = Field(..., ge=1, le=99)
+    speed: int = Field(..., ge=1, le=99)
+    
+    # Awareness & defensive stats
+    discipline: int = Field(..., ge=1, le=99)
+    off_awareness: int = Field(..., ge=1, le=99)
+    def_awareness: int = Field(..., ge=1, le=99)
+    faceoffs: int = Field(..., ge=1, le=99)
+    shot_blocking: int = Field(..., ge=1, le=99)
+    stick_checking: int = Field(..., ge=1, le=99)
+    
+    # Physical stats
+    aggression: int = Field(..., ge=1, le=99)
+    body_checking: int = Field(..., ge=1, le=99)
+    durability: int = Field(..., ge=1, le=99)
+    fighting_skill: int = Field(..., ge=1, le=99)
+    strength: int = Field(..., ge=1, le=99)
 
 
 class Goalie(PlayerBase):
-    """Goalie player model."""
-    position: Position = Field(default=Position.GOALIE, description="Always G")
+    """Goalie player with goalie-specific stats."""
+    position: str = Field(default="G", description="Always G")
+    
+    # Goalie-specific stats
+    passing: int = Field(..., ge=1, le=99)
+    agility: int = Field(..., ge=1, le=99)
+    speed: int = Field(..., ge=1, le=99)
+    aggression: int = Field(..., ge=1, le=99)
+    glove_high: int = Field(..., ge=1, le=99)
+    glove_low: int = Field(..., ge=1, le=99)
+    five_hole: int = Field(..., ge=1, le=99)
+    stick_high: int = Field(..., ge=1, le=99)
+    stick_low: int = Field(..., ge=1, le=99)
+    shot_recovery: int = Field(..., ge=1, le=99)
+    positioning: int = Field(..., ge=1, le=99)
+    breakaway: int = Field(..., ge=1, le=99)
+    vision: int = Field(..., ge=1, le=99)
+    poke_check: int = Field(..., ge=1, le=99)
+    rebound_control: int = Field(..., ge=1, le=99)
+
+
+# Generic player type (for API responses that mix positions)
+class Player(BaseModel):
+    """Generic player model (can be forward, defense, or goalie)."""
+    # Copy all base fields but make stats optional since they differ by position
+    id: int
+    player_id: int
+    first_name: str = ""
+    last_name: str = ""
+    img: str
+    event: str
+    nationality: str
+    league: str
+    team: str
+    weight: float
+    height: int
+    salary: float
+    overall: int
+    position: str
+    
+    @property
+    def full_name(self) -> str:
+        """Return player's full name."""
+        return f"{self.first_name} {self.last_name}".strip()
 
 
 # =============================================================================
@@ -124,7 +239,8 @@ class ComboCondition(BaseModel):
 
 class LineComboBase(BaseModel):
     """Base model for line combinations."""
-    id: int = Field(..., description="Unique combo ID")
+    id: int = Field(..., description="Database auto-increment ID")
+    combo_id: int = Field(..., description="Original combo ID from CSV")
     reward_amount: int = Field(..., ge=0, description="Bonus amount")
     reward_type: RewardType = Field(..., description="Type of reward")
     
@@ -180,7 +296,7 @@ class OptimizationConstraints(BaseModel):
     then converted to ASP constraints by the solver.
     """
     min_ovr: int = Field(default=0, ge=0, le=99, description="Minimum player OVR")
-    max_salary: Optional[int] = Field(default=None, description="Maximum total salary")
+    max_salary: Optional[float] = Field(default=None, description="Maximum total salary")
     max_ap: Optional[int] = Field(default=None, description="Maximum ability points")
     require_center: bool = Field(default=False, description="Require at least one center")
     excluded_player_ids: list[int] = Field(default_factory=list, description="Player IDs to exclude")
@@ -207,6 +323,7 @@ class OptimizationRequest(BaseModel):
 class ActiveCombo(BaseModel):
     """A line combo that is activated by the solution."""
     id: int
+    combo_id: int
     reward_type: RewardType
     reward_amount: int
     description: str = Field("", description="Human-readable condition description")
@@ -219,7 +336,7 @@ class LineSolution(BaseModel):
     total_base_ovr: int = Field(..., description="Sum of player OVRs")
     ovr_bonus: int = Field(default=0, description="OVR bonus from combos")
     effective_ovr: int = Field(..., description="total_base_ovr + ovr_bonus")
-    total_salary: int = Field(default=0, description="Total salary")
+    total_salary: float = Field(default=0, description="Total salary")
     total_ap: int = Field(default=0, description="Total ability points")
     active_combos: list[ActiveCombo] = Field(default_factory=list)
 
@@ -231,4 +348,3 @@ class OptimizationResponse(BaseModel):
     solutions: list[LineSolution] = Field(default_factory=list)
     computation_time_ms: int = Field(default=0, description="Time taken in milliseconds")
     candidates_evaluated: int = Field(default=0, description="Number of candidates considered")
-

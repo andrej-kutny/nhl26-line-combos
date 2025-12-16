@@ -8,8 +8,10 @@ Usage:
     from src.core import DataLoader
     
     loader = DataLoader("data/")
-    forwards = loader.get_forwards()
-    combos = loader.get_forward_combos()
+    # Query directly with filters (uses SQL WHERE clauses)
+    forwards = loader.get_forwards(min_ovr=85, team="TOR")
+    # Or get all
+    all_forwards = loader.get_forwards()
 
 Integration Points:
     - API: Uses loader to serve player/combo data via endpoints
@@ -17,7 +19,6 @@ Integration Points:
     - Frontend: Receives data through API (doesn't use loader directly)
 """
 
-import os
 import sqlite3
 from pathlib import Path
 from functools import lru_cache
@@ -37,35 +38,40 @@ from .models import (
 
 class DataLoader:
     """
-    Loads and caches NHL 26 game data from SQLite database.
+    Loads NHL 26 game data from SQLite database using efficient SQL queries.
     
-    The loader uses LRU caching to avoid repeated database queries.
-    Data is loaded lazily on first access.
+    This loader leverages SQLite's indexing and WHERE clauses for filtering,
+    rather than loading everything into memory. Only small lookup tables
+    (player names) are cached.
     
     Attributes:
+        data_dir: Path to the data directory containing the database
         db_path: Path to the SQLite database file
     
     Expected database schema:
         Tables: skater_names, goalie_names, forwards, defense, goalies,
                 forward_combos, defense_combos
         
-        Note: Players can have multiple cards (same player_id, different events),
-              so the primary key is an auto-increment id, not the player_id.
+        Note: Players can have multiple cards (same player_id, different card IDs),
+              each with unique auto-increment id.
     """
     
-    def __init__(self, db_path: str):
+    def __init__(self, data_dir: str = "data/", db_name: str = "nhl26.db"):
         """
         Initialize the data loader.
         
         Args:
-            db_path: Path to database file.
+            data_dir: Path to directory containing database file.
+                      Relative paths are resolved from project root.
+            db_name: Name of the SQLite database file.
         """
-        self.db_path = Path(db_path)
-        if not self.db_path.is_absolute():
+        self.data_dir = Path(data_dir)
+        if not self.data_dir.is_absolute():
             # Resolve relative to project root
             project_root = Path(__file__).parent.parent.parent
-            self.db_path = project_root / db_path
+            self.data_dir = project_root / data_dir
         
+        self.db_path = self.data_dir / db_name
         self._validate_database()
     
     def _validate_database(self) -> None:
@@ -106,152 +112,354 @@ class DataLoader:
         return conn
     
     # =========================================================================
-    # NAME LOOKUPS
+    # NAME LOOKUPS (Cached - these are small lookup tables)
     # =========================================================================
     
     @lru_cache(maxsize=1)
     def _load_skater_names(self) -> dict[int, tuple[str, str]]:
-        """Load skater names (forwards + defense) into a lookup dict."""
+        """Load skater names (forwards + defense) into a lookup dict.
+        
+        This is cached because it's a small lookup table that won't change
+        and is used frequently for name resolution.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT id, first_name, last_name FROM skater_names")
-        names = {row["id"]: (row["first_name"], row["last_name"]) for row in cursor.fetchall()}
+        cursor.execute("SELECT * FROM skater_names")
+        names = {row["player_id"]: (row["first_name"], row["last_name"]) for row in cursor.fetchall()}
         
         conn.close()
         return names
     
     @lru_cache(maxsize=1)
     def _load_goalie_names(self) -> dict[int, tuple[str, str]]:
-        """Load goalie names into a lookup dict."""
+        """Load goalie names into a lookup dict.
+        
+        This is cached because it's a small lookup table that won't change
+        and is used frequently for name resolution.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT id, first_name, last_name FROM goalie_names")
-        names = {row["id"]: (row["first_name"], row["last_name"]) for row in cursor.fetchall()}
+        cursor.execute("SELECT * FROM goalie_names")
+        names = {row["player_id"]: (row["first_name"], row["last_name"]) for row in cursor.fetchall()}
         
         conn.close()
         return names
     
-    def _get_skater_name(self, skater_id: int) -> tuple[str, str]:
-        """Get (first_name, last_name) for a skater ID."""
+    def _get_skater_name(self, player_id: int) -> tuple[str, str]:
+        """Get (first_name, last_name) for a player ID."""
         names = self._load_skater_names()
-        return names.get(skater_id, ("Unknown", "Player"))
+        return names.get(player_id, ("Unknown", "Player"))
     
-    def _get_goalie_name(self, goalie_id: int) -> tuple[str, str]:
+    def _get_goalie_name(self, player_id: int) -> tuple[str, str]:
         """Get (first_name, last_name) for a goalie ID."""
         names = self._load_goalie_names()
-        return names.get(goalie_id, ("Unknown", "Goalie"))
+        return names.get(player_id, ("Unknown", "Goalie"))
     
     # =========================================================================
-    # PLAYER LOADING
+    # PLAYER LOADING (Direct SQL queries - NOT cached)
     # =========================================================================
     
-    @lru_cache(maxsize=1)
-    def get_forwards(self) -> list[ForwardPlayer]:
+    def get_forwards(
+        self,
+        min_ovr: int = 0,
+        max_ovr: int = 99,
+        team: Optional[str] = None,
+        nationality: Optional[str] = None,
+        event: Optional[str] = None,
+        position: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> list[ForwardPlayer]:
         """
-        Load all forward players from database.
+        Load forward players from database with optional SQL filters.
         
+        Args:
+            min_ovr: Minimum overall rating
+            max_ovr: Maximum overall rating
+            team: Filter by team abbreviation
+            nationality: Filter by nationality
+            event: Filter by event type
+            position: Filter by position (C, LW, RW)
+            limit: Maximum number of results
+            offset: Number of results to skip (for pagination)
+            
         Returns:
             List of ForwardPlayer objects with names resolved
         """
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
-            SELECT skater_id, event, overall, nationality, league, team
+        # Build WHERE clause dynamically
+        where_clauses = ["overall >= ?", "overall <= ?"]
+        params = [min_ovr, max_ovr]
+        
+        if team:
+            where_clauses.append("team = ?")
+            params.append(team.upper())
+        
+        if nationality:
+            where_clauses.append("nationality = ?")
+            params.append(nationality.upper())
+        
+        if event:
+            where_clauses.append("event = ?")
+            params.append(event.upper())
+        
+        if position:
+            where_clauses.append("position = ?")
+            params.append(position.upper())
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Build complete query - select all columns
+        query = f"""
+            SELECT *
             FROM forwards
-            ORDER BY overall DESC, skater_id
-        """)
+            WHERE {where_sql}
+            ORDER BY overall DESC, player_id
+        """
+        
+        if limit:
+            query += f" LIMIT {limit}"
+        if offset:
+            query += f" OFFSET {offset}"
+        
+        cursor.execute(query, params)
         
         players = []
         for row in cursor.fetchall():
-            skater_id = row["skater_id"]
-            first_name, last_name = self._get_skater_name(skater_id)
+            player_id = row["player_id"]
+            first_name, last_name = self._get_skater_name(player_id)
             
             player = ForwardPlayer(
-                id=skater_id,
+                id=row["id"],
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
-                event=str(row["event"]).strip(),
-                overall=int(row["overall"]),
-                nationality=str(row["nationality"]).strip(),
-                league=str(row["league"]).strip(),
-                team=str(row["team"]).strip(),
+                img=row["img"],
+                position=row["position"],
+                nationality=row["nationality"],
+                event=row["event"],
+                league=row["league"],
+                team=row["team"],
+                weight=row["weight"],
+                height=row["height"],
+                salary=row["salary"],
+                overall=row["overall"],
+                deking=row["deking"],
+                hand_eye=row["hand_eye"],
+                passing=row["passing"],
+                puck_control=row["puck_control"],
+                slap_shot_accuracy=row["slap_shot_accuracy"],
+                slap_shot_power=row["slap_shot_power"],
+                wrist_shot_accuracy=row["wrist_shot_accuracy"],
+                wrist_shot_power=row["wrist_shot_power"],
+                acceleration=row["acceleration"],
+                agility=row["agility"],
+                balance=row["balance"],
+                endurance=row["endurance"],
+                speed=row["speed"],
+                discipline=row["discipline"],
+                off_awareness=row["off_awareness"],
+                def_awareness=row["def_awareness"],
+                faceoffs=row["faceoffs"],
+                shot_blocking=row["shot_blocking"],
+                stick_checking=row["stick_checking"],
+                aggression=row["aggression"],
+                body_checking=row["body_checking"],
+                durability=row["durability"],
+                fighting_skill=row["fighting_skill"],
+                strength=row["strength"],
             )
             players.append(player)
         
         conn.close()
         return players
     
-    @lru_cache(maxsize=1)
-    def get_defense(self) -> list[DefensePlayer]:
-        """
-        Load all defense players from database.
-        
-        Returns:
-            List of DefensePlayer objects with names resolved
-        """
+    def get_defense(
+        self,
+        min_ovr: int = 0,
+        max_ovr: int = 99,
+        team: Optional[str] = None,
+        nationality: Optional[str] = None,
+        event: Optional[str] = None,
+        position: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> list[DefensePlayer]:
+        """Load defense players from database with optional SQL filters."""
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
-            SELECT skater_id, event, overall, nationality, league, team
+        # Build WHERE clause dynamically
+        where_clauses = ["overall >= ?", "overall <= ?"]
+        params = [min_ovr, max_ovr]
+        
+        if team:
+            where_clauses.append("team = ?")
+            params.append(team.upper())
+        
+        if nationality:
+            where_clauses.append("nationality = ?")
+            params.append(nationality.upper())
+        
+        if event:
+            where_clauses.append("event = ?")
+            params.append(event.upper())
+        
+        if position:
+            where_clauses.append("position = ?")
+            params.append(position.upper())
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        query = f"""
+            SELECT *
             FROM defense
-            ORDER BY overall DESC, skater_id
-        """)
+            WHERE {where_sql}
+            ORDER BY overall DESC, player_id
+        """
+        
+        if limit:
+            query += f" LIMIT {limit}"
+        if offset:
+            query += f" OFFSET {offset}"
+        
+        cursor.execute(query, params)
         
         players = []
         for row in cursor.fetchall():
-            skater_id = row["skater_id"]
-            first_name, last_name = self._get_skater_name(skater_id)
+            player_id = row["player_id"]
+            first_name, last_name = self._get_skater_name(player_id)
             
             player = DefensePlayer(
-                id=skater_id,
+                id=row["id"],
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
-                event=str(row["event"]).strip(),
-                overall=int(row["overall"]),
-                nationality=str(row["nationality"]).strip(),
-                league=str(row["league"]).strip(),
-                team=str(row["team"]).strip(),
+                img=row["img"],
+                position=row["position"],
+                nationality=row["nationality"],
+                event=row["event"],
+                league=row["league"],
+                team=row["team"],
+                weight=row["weight"],
+                height=row["height"],
+                salary=row["salary"],
+                overall=row["overall"],
+                deking=row["deking"],
+                hand_eye=row["hand_eye"],
+                passing=row["passing"],
+                puck_control=row["puck_control"],
+                slap_shot_accuracy=row["slap_shot_accuracy"],
+                slap_shot_power=row["slap_shot_power"],
+                wrist_shot_accuracy=row["wrist_shot_accuracy"],
+                wrist_shot_power=row["wrist_shot_power"],
+                acceleration=row["acceleration"],
+                agility=row["agility"],
+                balance=row["balance"],
+                endurance=row["endurance"],
+                speed=row["speed"],
+                discipline=row["discipline"],
+                off_awareness=row["off_awareness"],
+                def_awareness=row["def_awareness"],
+                faceoffs=row["faceoffs"],
+                shot_blocking=row["shot_blocking"],
+                stick_checking=row["stick_checking"],
+                aggression=row["aggression"],
+                body_checking=row["body_checking"],
+                durability=row["durability"],
+                fighting_skill=row["fighting_skill"],
+                strength=row["strength"],
             )
             players.append(player)
         
         conn.close()
         return players
     
-    @lru_cache(maxsize=1)
-    def get_goalies(self) -> list[Goalie]:
-        """
-        Load all goalies from database.
-        
-        Returns:
-            List of Goalie objects with names resolved
-        """
+    def get_goalies(
+        self,
+        min_ovr: int = 0,
+        max_ovr: int = 99,
+        team: Optional[str] = None,
+        nationality: Optional[str] = None,
+        event: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> list[Goalie]:
+        """Load goalies from database with optional SQL filters."""
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
-            SELECT goalie_id, event, overall, nationality, league, team
+        # Build WHERE clause dynamically
+        where_clauses = ["overall >= ?", "overall <= ?"]
+        params = [min_ovr, max_ovr]
+        
+        if team:
+            where_clauses.append("team = ?")
+            params.append(team.upper())
+        
+        if nationality:
+            where_clauses.append("nationality = ?")
+            params.append(nationality.upper())
+        
+        if event:
+            where_clauses.append("event = ?")
+            params.append(event.upper())
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        query = f"""
+            SELECT *
             FROM goalies
-            ORDER BY overall DESC, goalie_id
-        """)
+            WHERE {where_sql}
+            ORDER BY overall DESC, player_id
+        """
+        
+        if limit:
+            query += f" LIMIT {limit}"
+        if offset:
+            query += f" OFFSET {offset}"
+        
+        cursor.execute(query, params)
         
         players = []
         for row in cursor.fetchall():
-            goalie_id = row["goalie_id"]
-            first_name, last_name = self._get_goalie_name(goalie_id)
+            player_id = row["player_id"]
+            first_name, last_name = self._get_goalie_name(player_id)
             
             player = Goalie(
-                id=goalie_id,
+                id=row["id"],
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
-                event=str(row["event"]).strip(),
-                overall=int(row["overall"]),
-                nationality=str(row["nationality"]).strip(),
-                league=str(row["league"]).strip(),
-                team=str(row["team"]).strip(),
+                img=row["img"],
+                position="G",
+                nationality=row["nationality"],
+                event=row["event"],
+                league=row["league"],
+                team=row["team"],
+                weight=row["weight"],
+                height=row["height"],
+                salary=row["salary"],
+                overall=row["overall"],
+                passing=row["passing"],
+                agility=row["agility"],
+                speed=row["speed"],
+                aggression=row["aggression"],
+                glove_high=row["glove_high"],
+                glove_low=row["glove_low"],
+                five_hole=row["five_hole"],
+                stick_high=row["stick_high"],
+                stick_low=row["stick_low"],
+                shot_recovery=row["shot_recovery"],
+                positioning=row["positioning"],
+                breakaway=row["breakaway"],
+                vision=row["vision"],
+                poke_check=row["poke_check"],
+                rebound_control=row["rebound_control"],
             )
             players.append(player)
         
@@ -272,13 +480,15 @@ class DataLoader:
         }
     
     # =========================================================================
-    # LINE COMBO LOADING
+    # LINE COMBO LOADING (Combos are small, can be cached)
     # =========================================================================
     
     @lru_cache(maxsize=1)
     def get_forward_combos(self) -> list[ForwardLineCombo]:
         """
         Load forward line combinations (3-player combos).
+        
+        Cached because combo tables are small and rarely change.
         
         Returns:
             List of ForwardLineCombo objects
@@ -287,8 +497,7 @@ class DataLoader:
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT id, reward_amount, reward_type,
-                   type1, key1, type2, key2, type3, key3
+            SELECT *
             FROM forward_combos
             ORDER BY id
         """)
@@ -297,6 +506,7 @@ class DataLoader:
         for row in cursor.fetchall():
             combo = ForwardLineCombo(
                 id=row["id"],
+                combo_id=row["combo_id"],
                 reward_amount=row["reward_amount"],
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
@@ -322,6 +532,8 @@ class DataLoader:
         """
         Load defense line combinations (2-player combos).
         
+        Cached because combo tables are small and rarely change.
+        
         Returns:
             List of DefenseLineCombo objects
         """
@@ -329,8 +541,7 @@ class DataLoader:
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT id, reward_amount, reward_type,
-                   type1, key1, type2, key2
+            SELECT *
             FROM defense_combos
             ORDER BY id
         """)
@@ -339,6 +550,7 @@ class DataLoader:
         for row in cursor.fetchall():
             combo = DefenseLineCombo(
                 id=row["id"],
+                combo_id=row["combo_id"],
                 reward_amount=row["reward_amount"],
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
@@ -368,7 +580,7 @@ class DataLoader:
         }
     
     # =========================================================================
-    # FILTERING UTILITIES
+    # FILTERING UTILITIES (Legacy - for backward compatibility)
     # =========================================================================
     
     def filter_players(
@@ -383,8 +595,10 @@ class DataLoader:
         """
         Filter a list of players by various criteria.
         
-        This is useful for pre-filtering before ASP optimization
-        to reduce the search space.
+        **DEPRECATED**: Use the filter parameters in get_forwards(), get_defense(),
+        or get_goalies() instead for better performance (uses SQL WHERE clauses).
+        
+        This method is kept for backward compatibility.
         
         Args:
             players: List of player objects to filter
@@ -392,10 +606,7 @@ class DataLoader:
             team: Filter by team abbreviation
             nationality: Filter by nationality
             event: Filter by event type
-            excluded_ids: List of player IDs to exclude
-            
-        Returns:
-            Filtered list of players
+            excluded_ids: List of database IDs to exclude
         """
         excluded_ids = excluded_ids or []
         
@@ -425,13 +636,6 @@ class DataLoader:
         
         Useful for the ASP team to determine which players can
         satisfy which conditions in line combinations.
-        
-        Args:
-            players: List of players to check
-            condition: The condition to match against
-            
-        Returns:
-            List of players matching the condition
         """
         return [
             p for p in players
@@ -444,50 +648,98 @@ class DataLoader:
     
     def get_stats(self) -> dict:
         """
-        Get dataset statistics.
+        Get dataset statistics using efficient SQL aggregation.
         
         Returns:
             Dictionary with counts and other statistics
         """
-        forwards = self.get_forwards()
-        defense = self.get_defense()
-        goalies = self.get_goalies()
-        fwd_combos = self.get_forward_combos()
-        def_combos = self.get_defense_combos()
+        conn = self._get_connection()
+        cursor = conn.cursor()
         
-        # Get unique values
-        all_team = set()
-        all_nationalities = set()
-        all_events = set()
+        # Get counts efficiently with SQL
+        cursor.execute("SELECT COUNT(*) as count FROM forwards")
+        forward_count = cursor.fetchone()["count"]
         
-        for player in forwards + defense + goalies:
-            all_team.add(player.team)
-            all_nationalities.add(player.nationality)
-            all_events.add(player.event)
+        cursor.execute("SELECT COUNT(*) as count FROM defense")
+        defense_count = cursor.fetchone()["count"]
+        
+        cursor.execute("SELECT COUNT(*) as count FROM goalies")
+        goalie_count = cursor.fetchone()["count"]
+        
+        cursor.execute("SELECT COUNT(DISTINCT player_id) as count FROM forwards")
+        unique_forwards = cursor.fetchone()["count"]
+        
+        cursor.execute("SELECT COUNT(DISTINCT player_id) as count FROM defense")
+        unique_defense = cursor.fetchone()["count"]
+        
+        cursor.execute("SELECT COUNT(DISTINCT player_id) as count FROM goalies")
+        unique_goalies = cursor.fetchone()["count"]
+        
+        cursor.execute("SELECT COUNT(*) as count FROM forward_combos")
+        fwd_combo_count = cursor.fetchone()["count"]
+        
+        cursor.execute("SELECT COUNT(*) as count FROM defense_combos")
+        def_combo_count = cursor.fetchone()["count"]
+        
+        # Get distinct values for teams, nationalities, events
+        cursor.execute("""
+            SELECT DISTINCT team FROM (
+                SELECT team FROM forwards
+                UNION
+                SELECT team FROM defense
+                UNION
+                SELECT team FROM goalies
+            ) ORDER BY team
+        """)
+        teams = [row["team"] for row in cursor.fetchall()]
+        
+        cursor.execute("""
+            SELECT DISTINCT nationality FROM (
+                SELECT nationality FROM forwards
+                UNION
+                SELECT nationality FROM defense
+                UNION
+                SELECT nationality FROM goalies
+            ) ORDER BY nationality
+        """)
+        nationalities = [row["nationality"] for row in cursor.fetchall()]
+        
+        cursor.execute("""
+            SELECT DISTINCT event FROM (
+                SELECT event FROM forwards
+                UNION
+                SELECT event FROM defense
+                UNION
+                SELECT event FROM goalies
+            ) ORDER BY event
+        """)
+        events = [row["event"] for row in cursor.fetchall()]
+        
+        conn.close()
         
         return {
             "players": {
-                "forwards": len(forwards),
-                "defense": len(defense),
-                "goalies": len(goalies),
-                "total": len(forwards) + len(defense) + len(goalies),
+                "forwards": forward_count,
+                "defense": defense_count,
+                "goalies": goalie_count,
+                "total": forward_count + defense_count + goalie_count,
             },
             "unique_players": {
-                "forwards": len(set(p.id for p in forwards)),
-                "defense": len(set(p.id for p in defense)),
-                "goalies": len(set(p.id for p in goalies)),
+                "forwards": unique_forwards,
+                "defense": unique_defense,
+                "goalies": unique_goalies,
             },
             "combos": {
-                "forward_combos": len(fwd_combos),
-                "defense_combos": len(def_combos),
-                "total": len(fwd_combos) + len(def_combos),
+                "forward_combos": fwd_combo_count,
+                "defense_combos": def_combo_count,
+                "total": fwd_combo_count + def_combo_count,
             },
-            "team": sorted(list(all_team)),
-            "nationalities": sorted(list(all_nationalities)),
-            "events": sorted(list(all_events)),
-            "team_count": len(all_team),
-            "nationality_count": len(all_nationalities),
-            "event_count": len(all_events),
+            "teams": teams,
+            "nationalities": nationalities,
+            "events": events,
+            "team_count": len(teams),
+            "nationality_count": len(nationalities),
+            "event_count": len(events),
         }
 
 
@@ -500,20 +752,20 @@ class DataLoader:
 _data_loader: Optional[DataLoader] = None
 
 
-def get_data_loader(db_path: str = "data/nhl26.db") -> DataLoader:
+def get_data_loader(data_dir: str = "data/") -> DataLoader:
     """
     Get or create the global DataLoader instance.
     
     This provides a singleton-like access pattern while still
-    allowing custom database paths when needed.
+    allowing custom data directories when needed.
     
     Usage:
         from src.core.data_loader import get_data_loader
         
         loader = get_data_loader()
-        forwards = loader.get_forwards()
+        forwards = loader.get_forwards(min_ovr=85, team="TOR")
     """
     global _data_loader
     if _data_loader is None:
-        _data_loader = DataLoader(db_path)
+        _data_loader = DataLoader(data_dir)
     return _data_loader

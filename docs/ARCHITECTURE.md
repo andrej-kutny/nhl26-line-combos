@@ -199,7 +199,7 @@ Triggered when **players** or **line combinations** change:
 From Angular UI, the API receives:
 - used players (exclude)
 - remaining salary cap / AP budget
-- fixed picks (by `card_id` or by `player_id` wildcard) *(planned)*
+- fixed picks (by card `id` or by `player_id` wildcard) *(planned)*
 
 The API pre-filters candidates and calls ASP to produce ranked solutions.
 
