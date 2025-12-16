@@ -99,19 +99,13 @@ class DataLoader:
     def _load_skater_names(self) -> dict[int, tuple[str, str]]:
         """Load skater names (forwards + defense) into a lookup dict."""
         df = pd.read_csv(self.data_dir / "skater_id.csv")
-        return {
-            row["ID"]: (row["First name"], row["Second name"])
-            for _, row in df.iterrows()
-        }
+        return {int(row["player_id"]): (row["First name"], row["Second name"]) for _, row in df.iterrows()}
     
     @lru_cache(maxsize=1)
     def _load_goalie_names(self) -> dict[int, tuple[str, str]]:
         """Load goalie names into a lookup dict."""
         df = pd.read_csv(self.data_dir / "g_id.csv")
-        return {
-            row["ID"]: (row["First name"], row["Second name"])
-            for _, row in df.iterrows()
-        }
+        return {int(row["player_id"]): (row["First name"], row["Second name"]) for _, row in df.iterrows()}
     
     def _get_skater_name(self, skater_id: int) -> tuple[str, str]:
         """Get (first_name, last_name) for a skater ID."""
@@ -139,18 +133,22 @@ class DataLoader:
         players = []
         
         for _, row in df.iterrows():
-            skater_id = int(row["Skater ID"])
-            first_name, last_name = self._get_skater_name(skater_id)
+            card_id = str(row["card_id"]).strip()
+            player_id = int(row["player_id"])
+            first_name, last_name = self._get_skater_name(player_id)
             
             player = ForwardPlayer(
-                id=skater_id,
+                id=card_id,
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
+                sub_position=str(row["position"]).strip().upper() or None,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
                 nationality=str(row["nationality"]).strip(),
                 league=str(row["league"]).strip(),
                 team=str(row["team"]).strip(),
+                salary=float(row["salary"]) if pd.notna(row["salary"]) else None,
             )
             players.append(player)
         
@@ -168,18 +166,22 @@ class DataLoader:
         players = []
         
         for _, row in df.iterrows():
-            skater_id = int(row["Skater ID"])
-            first_name, last_name = self._get_skater_name(skater_id)
+            card_id = str(row["card_id"]).strip()
+            player_id = int(row["player_id"])
+            first_name, last_name = self._get_skater_name(player_id)
             
             player = DefensePlayer(
-                id=skater_id,
+                id=card_id,
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
+                sub_position=str(row["position"]).strip().upper() or None,
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
                 nationality=str(row["nationality"]).strip(),
                 league=str(row["league"]).strip(),
                 team=str(row["team"]).strip(),
+                salary=float(row["salary"]) if pd.notna(row["salary"]) else None,
             )
             players.append(player)
         
@@ -197,18 +199,22 @@ class DataLoader:
         players = []
         
         for _, row in df.iterrows():
-            goalie_id = int(row["Goalie ID"])
-            first_name, last_name = self._get_goalie_name(goalie_id)
+            card_id = str(row["card_id"]).strip()
+            player_id = int(row["player_id"])
+            first_name, last_name = self._get_goalie_name(player_id)
             
             player = Goalie(
-                id=goalie_id,
+                id=card_id,
+                player_id=player_id,
                 first_name=first_name,
                 last_name=last_name,
+                sub_position="G",
                 event=str(row["event"]).strip(),
                 overall=int(row["overall"]),
                 nationality=str(row["nationality"]).strip(),
                 league=str(row["league"]).strip(),
                 team=str(row["team"]).strip(),
+                salary=float(row["salary"]) if pd.notna(row["salary"]) else None,
             )
             players.append(player)
         
@@ -244,7 +250,7 @@ class DataLoader:
         
         for idx, row in df.iterrows():
             combo = ForwardLineCombo(
-                id=idx,
+                id=int(row["combo_id"]),
                 reward_amount=int(row["reward_amount"]),
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
@@ -277,7 +283,7 @@ class DataLoader:
         
         for idx, row in df.iterrows():
             combo = DefenseLineCombo(
-                id=idx,
+                id=int(row["combo_id"]),
                 reward_amount=int(row["reward_amount"]),
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
@@ -316,7 +322,7 @@ class DataLoader:
         team: Optional[str] = None,
         nationality: Optional[str] = None,
         event: Optional[str] = None,
-        excluded_ids: Optional[list[int]] = None,
+        excluded_ids: Optional[list[str]] = None,
     ) -> list:
         """
         Filter a list of players by various criteria.
@@ -411,16 +417,16 @@ class DataLoader:
                 "total": len(forwards) + len(defense) + len(goalies),
             },
             "unique_players": {
-                "forwards": len(set(p.id for p in forwards)),
-                "defense": len(set(p.id for p in defense)),
-                "goalies": len(set(p.id for p in goalies)),
+                "forwards": len(set(p.player_id for p in forwards)),
+                "defense": len(set(p.player_id for p in defense)),
+                "goalies": len(set(p.player_id for p in goalies)),
             },
             "combos": {
                 "forward_combos": len(fwd_combos),
                 "defense_combos": len(def_combos),
                 "total": len(fwd_combos) + len(def_combos),
             },
-            "team": sorted(list(all_team)),
+            "teams": sorted(list(all_team)),
             "nationalities": sorted(list(all_nationalities)),
             "events": sorted(list(all_events)),
             "team_count": len(all_team),
@@ -455,4 +461,3 @@ def get_data_loader(data_dir: str = "data/") -> DataLoader:
     if _data_loader is None:
         _data_loader = DataLoader(data_dir)
     return _data_loader
-

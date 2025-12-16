@@ -203,8 +203,8 @@ class PlaceholderSolver(ASPSolverInterface):
         seen_ids = set()
         unique = []
         for p in filtered:
-            if p.id not in seen_ids:
-                seen_ids.add(p.id)
+            if p.player_id not in seen_ids:
+                seen_ids.add(p.player_id)
                 unique.append(p)
         
         solutions = []
@@ -219,19 +219,24 @@ class PlaceholderSolver(ASPSolverInterface):
             line_players = [
                 Player(
                     id=p.id,
+                    player_id=p.player_id,
                     first_name=p.first_name,
                     last_name=p.last_name,
+                    sub_position=p.sub_position,
                     event=p.event,
                     overall=p.overall,
                     nationality=p.nationality,
                     league=p.league,
                     team=p.team,
+                    salary=p.salary,
+                    ability_points=p.ability_points,
                     position=Position.FORWARD,
                 )
                 for p in players
             ]
             
             total_ovr = sum(p.overall for p in players)
+            total_salary = float(sum((p.salary or 0.0) for p in players))
             
             solution = LineSolution(
                 rank=i + 1,
@@ -239,7 +244,7 @@ class PlaceholderSolver(ASPSolverInterface):
                 total_base_ovr=total_ovr,
                 ovr_bonus=0,  # Placeholder - ASP will calculate real bonus
                 effective_ovr=total_ovr,
-                total_salary=0,  # Placeholder - need salary data
+                total_salary=total_salary,
                 total_ap=0,  # Placeholder - need AP data
                 active_combos=[],  # Placeholder - ASP will find combos
             )
@@ -270,8 +275,8 @@ class PlaceholderSolver(ASPSolverInterface):
         seen_ids = set()
         unique = []
         for p in filtered:
-            if p.id not in seen_ids:
-                seen_ids.add(p.id)
+            if p.player_id not in seen_ids:
+                seen_ids.add(p.player_id)
                 unique.append(p)
         
         solutions = []
@@ -284,19 +289,24 @@ class PlaceholderSolver(ASPSolverInterface):
             line_players = [
                 Player(
                     id=p.id,
+                    player_id=p.player_id,
                     first_name=p.first_name,
                     last_name=p.last_name,
+                    sub_position=p.sub_position,
                     event=p.event,
                     overall=p.overall,
                     nationality=p.nationality,
                     league=p.league,
                     team=p.team,
+                    salary=p.salary,
+                    ability_points=p.ability_points,
                     position=Position.DEFENSE,
                 )
                 for p in players
             ]
             
             total_ovr = sum(p.overall for p in players)
+            total_salary = float(sum((p.salary or 0.0) for p in players))
             
             solution = LineSolution(
                 rank=i + 1,
@@ -304,7 +314,7 @@ class PlaceholderSolver(ASPSolverInterface):
                 total_base_ovr=total_ovr,
                 ovr_bonus=0,
                 effective_ovr=total_ovr,
-                total_salary=0,
+                total_salary=total_salary,
                 total_ap=0,
                 active_combos=[],
             )
@@ -608,4 +618,3 @@ async def get_solver_status():
             else "Clingo ASP solver active"
         ),
     }
-
