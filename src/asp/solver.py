@@ -573,19 +573,28 @@ class ASPSolver:
             [
                 "--warn=none",
                 "--opt-mode=optN",
-                "--models",
-                str(num_solutions),
             ]
         )
         ctl.add("base", [], program)
         ctl.ground([("base", [])])
 
         models: list[list] = []
+        best_cost: tuple[int, ...] | None = None
         with ctl.solve(yield_=True) as handle:
             for model in handle:
-                models.append(model.symbols(shown=True))
-                if len(models) >= num_solutions:
-                    break
+                cost = tuple(model.cost)
+                symbols = model.symbols(shown=True)
+
+                if best_cost is None or cost < best_cost:
+                    best_cost = cost
+                    models = [symbols]
+                elif cost == best_cost and len(models) < num_solutions:
+                    models.append(symbols)
+
+                # Stop once optimality is proven and we have enough optimal models.
+                if getattr(model, "optimality_proven", False) and best_cost is not None:
+                    if len(models) >= num_solutions:
+                        break
         return models
 
     def _parse_line_model(
@@ -625,11 +634,14 @@ class ASPSolver:
                         player_id=p.player_id,
                         first_name=p.first_name,
                         last_name=p.last_name,
+                        sub_position=getattr(p, "sub_position", None),
                         event=p.event,
                         overall=p.overall,
                         nationality=p.nationality,
                         league=p.league,
                         team=p.team,
+                        salary=getattr(p, "salary", None),
+                        ability_points=getattr(p, "ability_points", None),
                         position=position,
                     )
 
@@ -743,11 +755,14 @@ class ASPSolver:
                         player_id=p.player_id,
                         first_name=p.first_name,
                         last_name=p.last_name,
+                        sub_position=getattr(p, "sub_position", None),
                         event=p.event,
                         overall=p.overall,
                         nationality=p.nationality,
                         league=p.league,
                         team=p.team,
+                        salary=getattr(p, "salary", None),
+                        ability_points=getattr(p, "ability_points", None),
                         position=pos,
                     )
 

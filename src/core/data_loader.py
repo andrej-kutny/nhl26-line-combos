@@ -151,6 +151,8 @@ class DataLoader:
 
             first_name, last_name = split_name(str(row.get("name", "")))
             salary = parse_salary(row.get("salary", ""))
+            div_raw = row.get("division", "")
+            league = "" if pd.isna(div_raw) else str(div_raw).strip()
 
             players.append(
                 {
@@ -162,7 +164,7 @@ class DataLoader:
                     "event": str(row.get("card", "")).strip(),
                     "overall": int(row.get("overall", 0)),
                     "nationality": str(row.get("nationality", "")).strip(),
-                    "league": str(row.get("division", "")).strip(),  # division as league surrogate
+                    "league": league,  # division as league surrogate
                     "team": str(row.get("team", "")).strip(),
                     "salary": salary,
                     "ability_points": None,
