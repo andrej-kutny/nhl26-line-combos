@@ -669,14 +669,13 @@ class ASPSolver:
             )
 
         import clingo  # type: ignore
+        import threading
 
         ctl_args = [
             "--warn=none",
             "--opt-mode=optN",
             f"--parallel-mode={int(self.clingo_threads)}",
         ]
-        if time_limit_seconds is not None:
-            ctl_args.append(f"--time-limit={int(time_limit_seconds)}")
         ctl = clingo.Control(ctl_args)
         if model_limit is not None:
             ctl.configuration.solve.solve_limit = str(int(model_limit))
@@ -686,6 +685,10 @@ class ASPSolver:
         models: list[list] = []
         best_cost: tuple[int, ...] | None = None
         with ctl.solve(yield_=True) as handle:
+            cancel_timer: threading.Timer | None = None
+            if time_limit_seconds is not None and int(time_limit_seconds) > 0:
+                cancel_timer = threading.Timer(float(time_limit_seconds), handle.cancel)
+                cancel_timer.start()
             for model in handle:
                 cost = tuple(model.cost)
                 symbols = model.symbols(shown=True)
@@ -700,6 +703,8 @@ class ASPSolver:
                 if getattr(model, "optimality_proven", False) and best_cost is not None:
                     if len(models) >= num_solutions:
                         break
+            if cancel_timer is not None:
+                cancel_timer.cancel()
         return models
 
     def _enumerate(

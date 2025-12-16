@@ -1,5 +1,6 @@
 % Goal 1 — Stage B (defense): enumerate all concrete defense pairs that satisfy
-% a required set of defense combos.
+% a required set of defense combos, and report *all* combos activated by the
+% chosen pair.
 %
 % Inputs (facts from Python/backend):
 % - player(CardID, OVR, Team, Nationality, Event).
@@ -10,6 +11,7 @@
 %
 % Semantics:
 % - We enumerate *all* distinct 2-player pairs that satisfy ALL required combos.
+% - A pair may activate 0..N combos simultaneously.
 % - Uniqueness is enforced via base.lp (no two cards with the same PlayerID).
 % - Symmetry is broken by enforcing an ordering on selected CardIDs.
 
@@ -29,20 +31,18 @@ in_pair(P) :- select(P, _).
 % - the union of players matching either condition has size >= 2.
 
 match_cond(C, 1, P) :-
-    required_combo(C),
     in_pair(P),
     def_combo(C, _, _, T1, K1, _, _),
     matches(P, T1, K1).
 match_cond(C, 2, P) :-
-    required_combo(C),
     in_pair(P),
     def_combo(C, _, _, _, _, T2, K2),
     matches(P, T2, K2).
 
-cond_ok(C, I) :- required_combo(C), 1 <= #count { P : match_cond(C, I, P) }, I = 1..2.
-union_ok(C) :- required_combo(C), 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
+cond_ok(C, I) :- def_combo(C, _, _, _, _, _, _), 1 <= #count { P : match_cond(C, I, P) }, I = 1..2.
+union_ok(C) :- def_combo(C, _, _, _, _, _, _), 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
 
-combo_active(C) :- required_combo(C), cond_ok(C, 1), cond_ok(C, 2), union_ok(C).
+combo_active(C) :- def_combo(C, _, _, _, _, _, _), cond_ok(C, 1), cond_ok(C, 2), union_ok(C).
 
 % Enforce that all required combos are active for the chosen pair
 :- required_combo(C), not combo_active(C).
@@ -77,4 +77,3 @@ total_ap_bonus(Bonus) :-
 #show total_salary_bonus/1.
 #show total_ap/1.
 #show total_ap_bonus/1.
-

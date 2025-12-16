@@ -45,10 +45,28 @@ Goal 1 (Stage B): grounding required combos
 -------------------------------------------
 - Rules: `src/asp/rules/goal1_stageb_forward.lp` and `src/asp/rules/goal1_stageb_defense.lp`.
 - Purpose: given a fixed set of `required_combo(ComboID)` facts, enumerate *concrete* lines/pairs that satisfy **all** required combos simultaneously.
+- Output: the chosen line/pair may activate **0..N combos simultaneously**; the enumeration reports all `combo_active/1` atoms (not only the required ones).
 - Helper script: `scripts/goal1_stageb_enumerate.py` (prints the first few models, can optionally write JSON).
   - Example (forward): `python scripts/goal1_stageb_enumerate.py --pos fwd --combo-ids 28,18 --min-ovr 80 --max-salary 110 --max-models 50`
   - Example (defense): `python scripts/goal1_stageb_enumerate.py --pos def --combo-ids 20 --min-ovr 80 --max-salary 110 --max-models 50`
 - Practical note: enumeration can grow large. We keep it explicit and controllable via `--max-models` (use `0` to enumerate all; expect long runtimes for broad conditions like `event=FANT`).
+
+Offline bench-first full-team runs (recommended for long searches)
+-----------------------------------------------------------------
+If you want to experiment with the “bench-first” hypothesis (activate high-value SAL/AP extender combos on the bench, then maximize OVR for the remaining roster under the effective caps), use the offline runner:
+
+- Script: `scripts/run_full_team_bench_first.py`
+- It picks concrete bench lines/pairs via Stage B enumeration, freezes them into `full_team.lp`, then runs the remaining search with explicit time limit + candidate caps.
+
+Example (2 hours, multi-core):
+
+```bash
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+PYTHONPATH=. venv/bin/python scripts/run_full_team_bench_first.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 7200 --threads 4 --max-fwd 24 --max-def 14 --max-g 4 --bench-fwd-combo 28 --bench-def-sal-combo 37 --bench-def-ap-combo 20 --bench-max-models 200 --json-out out/full_team_bench_first.json
+```
+
+Note: the script uses *effective* salary/AP (`base - bonus`), so negative values are expected and simply indicate net budget gain.
 
 Empirical sanity checks (local runs)
 ------------------------------------

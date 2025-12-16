@@ -103,11 +103,39 @@ def main() -> int:
     print(f"Enumerated {len(results)} model(s) for {args.pos} combo_ids={args.combo_ids}")
     for sol in results[: min(10, len(results))]:
         names = ", ".join([p.full_name for p in sol.players])
+        sal_bonus = sum(c.reward_amount for c in sol.active_combos if c.reward_type.value == "SAL")
+        ap_bonus = sum(c.reward_amount for c in sol.active_combos if c.reward_type.value == "AP")
+        base_salary = sol.total_salary + sal_bonus
+        base_ap = sol.total_ap + ap_bonus
         print(
             f"- #{sol.rank}: base_ovr={sol.total_base_ovr} ovr_bonus={sol.ovr_bonus} "
-            f"salary={sol.total_salary} ap={sol.total_ap} players=[{names}] "
-            f"active_combos={len(sol.active_combos)}"
+            f"salary_eff={sol.total_salary} (base={base_salary}, bonus={sal_bonus}) "
+            f"ap_eff={sol.total_ap} (base={base_ap}, bonus={ap_bonus}) "
+            f"players=[{names}] active_combos={len(sol.active_combos)}"
         )
+
+    if results:
+        best_salary = min(results, key=lambda s: (s.total_salary, -s.total_base_ovr))
+        best_ovr = max(results, key=lambda s: (s.total_base_ovr + s.ovr_bonus, -s.total_salary))
+        best_ap = min(results, key=lambda s: (s.total_ap, -s.total_base_ovr))
+
+        def _fmt(sol) -> str:
+            names = ", ".join([p.full_name for p in sol.players])
+            sal_bonus = sum(c.reward_amount for c in sol.active_combos if c.reward_type.value == "SAL")
+            ap_bonus = sum(c.reward_amount for c in sol.active_combos if c.reward_type.value == "AP")
+            base_salary = sol.total_salary + sal_bonus
+            base_ap = sol.total_ap + ap_bonus
+            return (
+                f"base_ovr={sol.total_base_ovr} ovr_bonus={sol.ovr_bonus} "
+                f"salary_eff={sol.total_salary} (base={base_salary}, bonus={sal_bonus}) "
+                f"ap_eff={sol.total_ap} (base={base_ap}, bonus={ap_bonus}) "
+                f"active_combos={len(sol.active_combos)} players=[{names}]"
+            )
+
+        print("")
+        print("Best (effective salary / cap gain):", _fmt(best_salary))
+        print("Best (effective AP / AP gain):", _fmt(best_ap))
+        print("Best (effective OVR):", _fmt(best_ovr))
 
     if args.json_out:
         out_path = Path(args.json_out).expanduser().resolve()
@@ -126,4 +154,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -1,5 +1,6 @@
 % Goal 1 — Stage B (forward): enumerate all concrete forward lines that satisfy
-% a required set of forward combos.
+% a required set of forward combos, and report *all* combos activated by the
+% chosen line.
 %
 % Inputs (facts from Python/backend):
 % - player(CardID, OVR, Team, Nationality, Event).
@@ -10,6 +11,7 @@
 %
 % Semantics:
 % - We enumerate *all* distinct 3-player lines that satisfy ALL required combos.
+% - A line may activate 0..N combos simultaneously.
 % - Uniqueness is enforced via base.lp (no two cards with the same PlayerID).
 % - Symmetry is broken by enforcing an ordering on selected CardIDs.
 
@@ -33,31 +35,28 @@ in_line(P) :- select(P, _).
 % holds for all subsets of conditions.
 
 match_cond(C, 1, P) :-
-    required_combo(C),
     in_line(P),
     fwd_combo(C, _, _, T1, K1, _, _, _, _),
     matches(P, T1, K1).
 match_cond(C, 2, P) :-
-    required_combo(C),
     in_line(P),
     fwd_combo(C, _, _, _, _, T2, K2, _, _),
     matches(P, T2, K2).
 match_cond(C, 3, P) :-
-    required_combo(C),
     in_line(P),
     fwd_combo(C, _, _, _, _, _, _, T3, K3),
     matches(P, T3, K3).
 
-cond_ok(C, I) :- required_combo(C), 1 <= #count { P : match_cond(C, I, P) }, I = 1..3.
+cond_ok(C, I) :- fwd_combo(C, _, _, _, _, _, _, _, _), 1 <= #count { P : match_cond(C, I, P) }, I = 1..3.
 
-pair_ok(C, 1, 2) :- required_combo(C), 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
-pair_ok(C, 1, 3) :- required_combo(C), 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 3, P) }.
-pair_ok(C, 2, 3) :- required_combo(C), 2 <= #count { P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
+pair_ok(C, 1, 2) :- fwd_combo(C, _, _, _, _, _, _, _, _), 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P) }.
+pair_ok(C, 1, 3) :- fwd_combo(C, _, _, _, _, _, _, _, _), 2 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 3, P) }.
+pair_ok(C, 2, 3) :- fwd_combo(C, _, _, _, _, _, _, _, _), 2 <= #count { P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
 
-triple_ok(C) :- required_combo(C), 3 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
+triple_ok(C) :- fwd_combo(C, _, _, _, _, _, _, _, _), 3 <= #count { P : match_cond(C, 1, P); P : match_cond(C, 2, P); P : match_cond(C, 3, P) }.
 
 combo_active(C) :-
-    required_combo(C),
+    fwd_combo(C, _, _, _, _, _, _, _, _),
     cond_ok(C, 1), cond_ok(C, 2), cond_ok(C, 3),
     pair_ok(C, 1, 2), pair_ok(C, 1, 3), pair_ok(C, 2, 3),
     triple_ok(C).
@@ -95,4 +94,3 @@ total_ap_bonus(Bonus) :-
 #show total_salary_bonus/1.
 #show total_ap/1.
 #show total_ap_bonus/1.
-
