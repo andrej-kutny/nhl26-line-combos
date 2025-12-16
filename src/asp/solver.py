@@ -78,6 +78,7 @@ class ASPSolver:
                     combos=combos,
                     constraints=constraints,
                     is_forward=True,
+                    target=target,
                 ),
                 self._read_rules("base.lp"),
                 self._read_rules("forward_line.lp"),
@@ -124,6 +125,7 @@ class ASPSolver:
                     combos=combos,
                     constraints=constraints,
                     is_forward=False,
+                    target=target,
                 ),
                 self._read_rules("base.lp"),
                 self._read_rules("defense_pair.lp"),
@@ -199,6 +201,7 @@ class ASPSolver:
                     fwd_combos=fwd_combos,
                     def_combos=def_combos,
                     constraints=constraints,
+                    target=target,
                 ),
                 self._read_rules("base.lp"),
                 self._read_rules("full_team.lp"),
@@ -373,8 +376,10 @@ class ASPSolver:
         combos: list,
         constraints: OptimizationConstraints,
         is_forward: bool,
+        target: OptimizationTarget,
     ) -> str:
         lines: list[str] = []
+        lines.append(f"opt_target({self._clingo_str(target.value.lower())}).")
 
         for p in players:
             lines.append(
@@ -454,8 +459,10 @@ class ASPSolver:
         fwd_combos: list,
         def_combos: list,
         constraints: OptimizationConstraints,
+        target: OptimizationTarget,
     ) -> str:
         lines: list[str] = []
+        lines.append(f"opt_target({self._clingo_str(target.value.lower())}).")
 
         # Players with position tags and common attributes
         for p in forwards:
