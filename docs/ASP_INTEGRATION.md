@@ -36,6 +36,18 @@ Combos are treated as “auto-activating”: if the selected players satisfy a c
 conditions (with an injective match from conditions → players), that combo’s bonus
 is applied. A single line/pair may activate 0..N different combos simultaneously.
 
+## Exporting combo CSVs to `.lp` facts (Goal 1 / debugging)
+
+When you want to test ASP logic without relying on the backend fact generator, you can export the combo CSVs into small `.lp` fact files:
+
+```bash
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+python scripts/export_combo_lp.py --data-dir data --out-dir out
+```
+
+This writes 6 files under `out/` (`fwd_*.lp` and `def_*.lp`) using the same predicate signatures as our ASP rules (`fwd_combo/9`, `def_combo/7`). The `out/` directory is ignored by git.
+
 ## Step 1: Understand the Data
 
 ### Players

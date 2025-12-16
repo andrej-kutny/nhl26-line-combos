@@ -59,6 +59,9 @@ Thumbs.db
 *.log
 logs/
 
+# Local outputs
+out/
+
 # Local data (keep CSV files in data/)
 *.tmp
 *.bak
