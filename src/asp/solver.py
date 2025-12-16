@@ -690,6 +690,187 @@ class ASPSolver:
                         break
         return models
 
+    def _enumerate(
+        self,
+        program: str,
+        *,
+        max_models: int,
+        model_limit: int | None = None,
+    ) -> list[list]:
+        """
+        Enumerate stable models (no optimization assumptions).
+
+        This is used for Goal 1 style enumeration tasks where we want to list
+        multiple concrete line realizations for a fixed set of required combos.
+        """
+        if not self.is_available():
+            raise RuntimeError(
+                "Clingo is not available. Install dependencies from "
+                "`requirements.txt` in a Python version supported by `clingo`."
+            )
+
+        import clingo  # type: ignore
+
+        if max_models == 0:
+            ctl = clingo.Control(["--warn=none", "--models=0"])
+        else:
+            ctl = clingo.Control(["--warn=none", f"--models={int(max_models)}"])
+
+        if model_limit is not None:
+            ctl.configuration.solve.solve_limit = str(int(model_limit))
+        ctl.add("base", [], program)
+        ctl.ground([("base", [])])
+
+        models: list[list] = []
+        with ctl.solve(yield_=True) as handle:
+            for model in handle:
+                models.append(model.symbols(shown=True))
+                if max_models != 0 and len(models) >= max_models:
+                    break
+        return models
+
+    def enumerate_forward_lines_for_required_combos(
+        self,
+        *,
+        required_combo_ids: Iterable[int],
+        constraints: OptimizationConstraints,
+        max_models: int = 100,
+    ) -> list[LineSolution]:
+        """
+        Goal 1 (Stage B): enumerate concrete forward lines that satisfy a set of
+        required forward combo IDs.
+
+        This does not optimize; it enumerates up to `max_models` stable models.
+        """
+        forwards = self.loader.get_forwards()
+        combos = self.loader.get_forward_combos()
+        combo_map = {c.id: c for c in combos}
+
+        required = [combo_map[cid] for cid in required_combo_ids if cid in combo_map]
+        missing = [cid for cid in required_combo_ids if cid not in combo_map]
+        if missing:
+            raise ValueError(f"Unknown forward combo IDs: {missing}")
+
+        forwards = self.loader.filter_players(
+            forwards,
+            min_ovr=constraints.min_ovr,
+            team=constraints.required_team,
+            nationality=constraints.required_nationality,
+            event=constraints.required_event,
+            excluded_ids=constraints.excluded_player_ids,
+        )
+
+        # Safe pruning: for every required combo, each selected player must match
+        # at least one of its conditions (otherwise the injective match is impossible).
+        candidate_ids: set[str] | None = None
+        for combo in required:
+            eligible_for_combo = {
+                str(p.id)
+                for p in forwards
+                if any(p.matches_condition(cond.type, cond.key) for cond in combo.get_conditions())
+            }
+            candidate_ids = eligible_for_combo if candidate_ids is None else candidate_ids & eligible_for_combo
+        if candidate_ids is not None:
+            forwards = [p for p in forwards if str(p.id) in candidate_ids]
+
+        required_facts = "\n".join([f"required_combo({int(c.id)})." for c in required])
+        program = "\n".join(
+            [
+                self._generate_facts(
+                    players=forwards,
+                    combos=combos,
+                    constraints=constraints,
+                    is_forward=True,
+                    target=OptimizationTarget.OVR,
+                ),
+                required_facts,
+                self._read_rules("base.lp"),
+                self._read_rules("goal1_stageb_forward.lp"),
+            ]
+        )
+
+        models = self._enumerate(program, max_models=max_models)
+        return [
+            self._parse_line_model(
+                symbols=model,
+                players=forwards,
+                combos=combos,
+                position=Position.FORWARD,
+                expected_slots=(1, 2, 3),
+                rank=i + 1,
+            )
+            for i, model in enumerate(models)
+        ]
+
+    def enumerate_defense_pairs_for_required_combos(
+        self,
+        *,
+        required_combo_ids: Iterable[int],
+        constraints: OptimizationConstraints,
+        max_models: int = 100,
+    ) -> list[LineSolution]:
+        """
+        Goal 1 (Stage B): enumerate concrete defense pairs that satisfy a set of
+        required defense combo IDs.
+        """
+        defense = self.loader.get_defense()
+        combos = self.loader.get_defense_combos()
+        combo_map = {c.id: c for c in combos}
+
+        required = [combo_map[cid] for cid in required_combo_ids if cid in combo_map]
+        missing = [cid for cid in required_combo_ids if cid not in combo_map]
+        if missing:
+            raise ValueError(f"Unknown defense combo IDs: {missing}")
+
+        defense = self.loader.filter_players(
+            defense,
+            min_ovr=constraints.min_ovr,
+            team=constraints.required_team,
+            nationality=constraints.required_nationality,
+            event=constraints.required_event,
+            excluded_ids=constraints.excluded_player_ids,
+        )
+
+        candidate_ids: set[str] | None = None
+        for combo in required:
+            eligible_for_combo = {
+                str(p.id)
+                for p in defense
+                if any(p.matches_condition(cond.type, cond.key) for cond in combo.get_conditions())
+            }
+            candidate_ids = eligible_for_combo if candidate_ids is None else candidate_ids & eligible_for_combo
+        if candidate_ids is not None:
+            defense = [p for p in defense if str(p.id) in candidate_ids]
+
+        required_facts = "\n".join([f"required_combo({int(c.id)})." for c in required])
+        program = "\n".join(
+            [
+                self._generate_facts(
+                    players=defense,
+                    combos=combos,
+                    constraints=constraints,
+                    is_forward=False,
+                    target=OptimizationTarget.OVR,
+                ),
+                required_facts,
+                self._read_rules("base.lp"),
+                self._read_rules("goal1_stageb_defense.lp"),
+            ]
+        )
+
+        models = self._enumerate(program, max_models=max_models)
+        return [
+            self._parse_line_model(
+                symbols=model,
+                players=defense,
+                combos=combos,
+                position=Position.DEFENSE,
+                expected_slots=(1, 2),
+                rank=i + 1,
+            )
+            for i, model in enumerate(models)
+        ]
+
     def _parse_line_model(
         self,
         *,

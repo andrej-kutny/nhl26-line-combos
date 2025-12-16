@@ -45,6 +45,15 @@ Combo activation sanity check
 - Script: `python scripts/check_combo_activation.py` prints how many forward/defense combos can currently activate with the loaded dataset.
 - With the nhlhutbuilder-based player snapshot and v3 combos, we currently see ~55/68 forward and ~56/71 defense combos activatable (the loader normalizes `type=CARD` to `event` codes such as `GM`, `FANT`, etc.).
 
+Goal 1 (Stage B): grounding required combos
+-------------------------------------------
+- Rules: `src/asp/rules/goal1_stageb_forward.lp` and `src/asp/rules/goal1_stageb_defense.lp`.
+- Purpose: given a fixed set of `required_combo(ComboID)` facts, enumerate *concrete* lines/pairs that satisfy **all** required combos simultaneously.
+- Helper script: `scripts/goal1_stageb_enumerate.py` (prints the first few models, can optionally write JSON).
+  - Example (forward): `python scripts/goal1_stageb_enumerate.py --pos fwd --combo-ids 28,18 --min-ovr 80 --max-salary 110 --max-models 50`
+  - Example (defense): `python scripts/goal1_stageb_enumerate.py --pos def --combo-ids 20 --min-ovr 80 --max-salary 110 --max-models 50`
+- Practical note: enumeration can grow large. We keep it explicit and controllable via `--max-models` (use `0` to enumerate all; expect long runtimes for broad conditions like `event=FANT`).
+
 Fresh player data from nhlhutbuilder
 ------------------------------------
 - Fetch: `python scripts/fetch_nhlhutbuilder_api.py` hits `php/player_stats.php` (server-side DataTables) and writes `data/nhlhutbuilder_players_api.csv`. All columns mirror the site (CARD, NAT, TEAM, DIV, SAL, POS, HAND, WGT, HGT, NAME, OVR, aOVR, …, FO, DIS, card_api_id). It iterates pages until the API returns empty, then sorts by name for easy visual validation.
