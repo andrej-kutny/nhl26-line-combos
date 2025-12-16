@@ -1,7 +1,7 @@
 """
 Data loader for NHL 26 Line Combos Optimizer.
 
-This module handles loading data from CSV files and converting them to domain models.
+This module handles loading data from SQLite database and converting them to domain models.
 It serves as the single source of truth for data access across all components.
 
 Usage:
@@ -18,11 +18,10 @@ Integration Points:
 """
 
 import os
+import sqlite3
 from pathlib import Path
 from functools import lru_cache
 from typing import Optional
-
-import pandas as pd
 
 from .models import (
     ForwardPlayer,
@@ -38,58 +37,73 @@ from .models import (
 
 class DataLoader:
     """
-    Loads and caches NHL 26 game data from CSV files.
+    Loads and caches NHL 26 game data from SQLite database.
     
-    The loader uses LRU caching to avoid repeated file reads.
+    The loader uses LRU caching to avoid repeated database queries.
     Data is loaded lazily on first access.
     
     Attributes:
-        data_dir: Path to the data directory containing CSV files
+        db_path: Path to the SQLite database file
     
-    Expected CSV files:
-        - fwd_filtered.csv: Forward player cards
-        - def_filtered.csv: Defense player cards
-        - g_filtered.csv: Goalie player cards
-        - skater_id.csv: Skater names (forwards + defense)
-        - g_id.csv: Goalie names
-        - fwd_line_combos.csv: Forward line combinations (3 players)
-        - def_line_combos.csv: Defense line combinations (2 players)
+    Expected database schema:
+        Tables: skater_names, goalie_names, forwards, defense, goalies,
+                forward_combos, defense_combos
+        
+        Note: Players can have multiple cards (same player_id, different events),
+              so the primary key is an auto-increment id, not the player_id.
     """
     
-    def __init__(self, data_dir: str = "data/"):
+    def __init__(self, db_path: str):
         """
         Initialize the data loader.
         
         Args:
-            data_dir: Path to directory containing CSV files.
-                      Relative paths are resolved from project root.
+            db_path: Path to database file.
         """
-        self.data_dir = Path(data_dir)
-        if not self.data_dir.is_absolute():
+        self.db_path = Path(db_path)
+        if not self.db_path.is_absolute():
             # Resolve relative to project root
             project_root = Path(__file__).parent.parent.parent
-            self.data_dir = project_root / data_dir
+            self.db_path = project_root / db_path
         
-        self._validate_data_dir()
+        self._validate_database()
     
-    def _validate_data_dir(self) -> None:
-        """Validate that the data directory exists and contains expected files."""
-        if not self.data_dir.exists():
-            raise FileNotFoundError(f"Data directory not found: {self.data_dir}")
+    def _validate_database(self) -> None:
+        """Validate that the database exists and contains expected tables."""
+        if not self.db_path.exists():
+            raise FileNotFoundError(
+                f"Database not found: {self.db_path}\n"
+                f"Please run the migration script: python scripts/csv_to_sqlite.py"
+            )
         
-        required_files = [
-            "fwd_filtered.csv",
-            "def_filtered.csv",
-            "g_filtered.csv",
-            "skater_id.csv",
-            "g_id.csv",
-            "fwd_line_combos.csv",
-            "def_line_combos.csv",
-        ]
+        # Check that all required tables exist
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
         
-        missing = [f for f in required_files if not (self.data_dir / f).exists()]
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = {row[0] for row in cursor.fetchall()}
+        
+        required_tables = {
+            "skater_names",
+            "goalie_names",
+            "forwards",
+            "defense",
+            "goalies",
+            "forward_combos",
+            "defense_combos",
+        }
+        
+        missing = required_tables - tables
+        conn.close()
+        
         if missing:
-            raise FileNotFoundError(f"Missing required data files: {missing}")
+            raise ValueError(f"Database missing required tables: {missing}")
+    
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get a database connection with row factory enabled."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row  # Enable column access by name
+        return conn
     
     # =========================================================================
     # NAME LOOKUPS
@@ -98,20 +112,26 @@ class DataLoader:
     @lru_cache(maxsize=1)
     def _load_skater_names(self) -> dict[int, tuple[str, str]]:
         """Load skater names (forwards + defense) into a lookup dict."""
-        df = pd.read_csv(self.data_dir / "skater_id.csv")
-        return {
-            row["ID"]: (row["First name"], row["Second name"])
-            for _, row in df.iterrows()
-        }
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, first_name, last_name FROM skater_names")
+        names = {row["id"]: (row["first_name"], row["last_name"]) for row in cursor.fetchall()}
+        
+        conn.close()
+        return names
     
     @lru_cache(maxsize=1)
     def _load_goalie_names(self) -> dict[int, tuple[str, str]]:
         """Load goalie names into a lookup dict."""
-        df = pd.read_csv(self.data_dir / "g_id.csv")
-        return {
-            row["ID"]: (row["First name"], row["Second name"])
-            for _, row in df.iterrows()
-        }
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, first_name, last_name FROM goalie_names")
+        names = {row["id"]: (row["first_name"], row["last_name"]) for row in cursor.fetchall()}
+        
+        conn.close()
+        return names
     
     def _get_skater_name(self, skater_id: int) -> tuple[str, str]:
         """Get (first_name, last_name) for a skater ID."""
@@ -130,88 +150,112 @@ class DataLoader:
     @lru_cache(maxsize=1)
     def get_forwards(self) -> list[ForwardPlayer]:
         """
-        Load all forward players from CSV.
+        Load all forward players from database.
         
         Returns:
             List of ForwardPlayer objects with names resolved
         """
-        df = pd.read_csv(self.data_dir / "fwd_filtered.csv")
-        players = []
+        conn = self._get_connection()
+        cursor = conn.cursor()
         
-        for _, row in df.iterrows():
-            skater_id = int(row["Skater ID"])
+        cursor.execute("""
+            SELECT skater_id, event, overall, nationality, league, team
+            FROM forwards
+            ORDER BY overall DESC, skater_id
+        """)
+        
+        players = []
+        for row in cursor.fetchall():
+            skater_id = row["skater_id"]
             first_name, last_name = self._get_skater_name(skater_id)
             
             player = ForwardPlayer(
                 id=skater_id,
                 first_name=first_name,
                 last_name=last_name,
-                event=str(row["event"]).strip(),
-                overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                event=row["event"].strip(),
+                overall=row["overall"],
+                nationality=row["nationality"].strip(),
+                league=row["league"].strip(),
+                team=row["team"].strip(),
             )
             players.append(player)
         
+        conn.close()
         return players
     
     @lru_cache(maxsize=1)
     def get_defense(self) -> list[DefensePlayer]:
         """
-        Load all defense players from CSV.
+        Load all defense players from database.
         
         Returns:
             List of DefensePlayer objects with names resolved
         """
-        df = pd.read_csv(self.data_dir / "def_filtered.csv")
-        players = []
+        conn = self._get_connection()
+        cursor = conn.cursor()
         
-        for _, row in df.iterrows():
-            skater_id = int(row["Skater ID"])
+        cursor.execute("""
+            SELECT skater_id, event, overall, nationality, league, team
+            FROM defense
+            ORDER BY overall DESC, skater_id
+        """)
+        
+        players = []
+        for row in cursor.fetchall():
+            skater_id = row["skater_id"]
             first_name, last_name = self._get_skater_name(skater_id)
             
             player = DefensePlayer(
                 id=skater_id,
                 first_name=first_name,
                 last_name=last_name,
-                event=str(row["event"]).strip(),
-                overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                event=row["event"].strip(),
+                overall=row["overall"],
+                nationality=row["nationality"].strip(),
+                league=row["league"].strip(),
+                team=row["team"].strip(),
             )
             players.append(player)
         
+        conn.close()
         return players
     
     @lru_cache(maxsize=1)
     def get_goalies(self) -> list[Goalie]:
         """
-        Load all goalies from CSV.
+        Load all goalies from database.
         
         Returns:
             List of Goalie objects with names resolved
         """
-        df = pd.read_csv(self.data_dir / "g_filtered.csv")
-        players = []
+        conn = self._get_connection()
+        cursor = conn.cursor()
         
-        for _, row in df.iterrows():
-            goalie_id = int(row["Goalie ID"])
+        cursor.execute("""
+            SELECT goalie_id, event, overall, nationality, league, team
+            FROM goalies
+            ORDER BY overall DESC, goalie_id
+        """)
+        
+        players = []
+        for row in cursor.fetchall():
+            goalie_id = row["goalie_id"]
             first_name, last_name = self._get_goalie_name(goalie_id)
             
             player = Goalie(
                 id=goalie_id,
                 first_name=first_name,
                 last_name=last_name,
-                event=str(row["event"]).strip(),
-                overall=int(row["overall"]),
-                nationality=str(row["nationalitys"]).strip(),
-                league=str(row["leagues"]).strip(),
-                team=str(row["teams"]).strip(),
+                event=row["event"].strip(),
+                overall=row["overall"],
+                nationality=row["nationality"].strip(),
+                league=row["league"].strip(),
+                team=row["team"].strip(),
             )
             players.append(player)
         
+        conn.close()
         return players
     
     def get_all_players(self) -> dict[str, list]:
@@ -239,29 +283,38 @@ class DataLoader:
         Returns:
             List of ForwardLineCombo objects
         """
-        df = pd.read_csv(self.data_dir / "fwd_line_combos.csv")
-        combos = []
+        conn = self._get_connection()
+        cursor = conn.cursor()
         
-        for idx, row in df.iterrows():
+        cursor.execute("""
+            SELECT id, reward_amount, reward_type,
+                   type1, key1, type2, key2, type3, key3
+            FROM forward_combos
+            ORDER BY id
+        """)
+        
+        combos = []
+        for row in cursor.fetchall():
             combo = ForwardLineCombo(
-                id=idx,
-                reward_amount=int(row["reward_amount"]),
+                id=row["id"],
+                reward_amount=row["reward_amount"],
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
-                    type=str(row["type1"]).lower(),
-                    key=str(row["key1"]).upper(),
+                    type=row["type1"].lower(),
+                    key=row["key1"].upper(),
                 ),
                 condition2=ComboCondition(
-                    type=str(row["type2"]).lower(),
-                    key=str(row["key2"]).upper(),
+                    type=row["type2"].lower(),
+                    key=row["key2"].upper(),
                 ),
                 condition3=ComboCondition(
-                    type=str(row["type3"]).lower(),
-                    key=str(row["key3"]).upper(),
+                    type=row["type3"].lower(),
+                    key=row["key3"].upper(),
                 ),
             )
             combos.append(combo)
         
+        conn.close()
         return combos
     
     @lru_cache(maxsize=1)
@@ -272,25 +325,34 @@ class DataLoader:
         Returns:
             List of DefenseLineCombo objects
         """
-        df = pd.read_csv(self.data_dir / "def_line_combos.csv")
-        combos = []
+        conn = self._get_connection()
+        cursor = conn.cursor()
         
-        for idx, row in df.iterrows():
+        cursor.execute("""
+            SELECT id, reward_amount, reward_type,
+                   type1, key1, type2, key2
+            FROM defense_combos
+            ORDER BY id
+        """)
+        
+        combos = []
+        for row in cursor.fetchall():
             combo = DefenseLineCombo(
-                id=idx,
-                reward_amount=int(row["reward_amount"]),
+                id=row["id"],
+                reward_amount=row["reward_amount"],
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
-                    type=str(row["type1"]).lower(),
-                    key=str(row["key1"]).upper(),
+                    type=row["type1"].lower(),
+                    key=row["key1"].upper(),
                 ),
                 condition2=ComboCondition(
-                    type=str(row["type2"]).lower(),
-                    key=str(row["key2"]).upper(),
+                    type=row["type2"].lower(),
+                    key=row["key2"].upper(),
                 ),
             )
             combos.append(combo)
         
+        conn.close()
         return combos
     
     def get_all_combos(self) -> dict[str, list]:
@@ -438,12 +500,12 @@ class DataLoader:
 _data_loader: Optional[DataLoader] = None
 
 
-def get_data_loader(data_dir: str = "data/") -> DataLoader:
+def get_data_loader(db_path: str = "data/nhl26.db") -> DataLoader:
     """
     Get or create the global DataLoader instance.
     
     This provides a singleton-like access pattern while still
-    allowing custom data directories when needed.
+    allowing custom database paths when needed.
     
     Usage:
         from src.core.data_loader import get_data_loader
@@ -453,6 +515,5 @@ def get_data_loader(data_dir: str = "data/") -> DataLoader:
     """
     global _data_loader
     if _data_loader is None:
-        _data_loader = DataLoader(data_dir)
+        _data_loader = DataLoader(db_path)
     return _data_loader
-
