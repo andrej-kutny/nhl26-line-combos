@@ -63,10 +63,12 @@ Example (2 hours, multi-core):
 ```bash
 cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
 source venv/bin/activate
-PYTHONPATH=. venv/bin/python scripts/run_full_team_bench_first.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 7200 --threads 4 --max-fwd 24 --max-def 14 --max-g 4 --bench-fwd-combo 28 --bench-def-sal-combo 37 --bench-def-ap-combo 20 --bench-max-models 200 --json-out out/full_team_bench_first.json
+PYTHONPATH=. venv/bin/python scripts/run_full_team_bench_first.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 7200 --threads 4 --max-fwd 24 --max-def 14 --max-g 4 --bench-fwd-combo 28 --bench-def-sal-combo 37 --bench-max-models 200 --json-out out/full_team_bench_first.json
 ```
 
 Note: the script uses *effective* salary/AP (`base - bonus`), so negative values are expected and simply indicate net budget gain.
+
+If you also want to force a second defense combo (e.g., an AP extender), pass `--bench-def-ap-combo <id>`. This is optional and may fail if your `full_team.lp` enforces a hard OVR floor on defense pair 2 (slots 15–16).
 
 Empirical sanity checks (local runs)
 ------------------------------------
