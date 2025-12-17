@@ -72,6 +72,18 @@ def main() -> int:
         help="How many models to enumerate. Use 0 to enumerate all (can be very large).",
     )
     parser.add_argument(
+        "--time-limit-seconds",
+        type=int,
+        default=None,
+        help="Optional time limit for enumeration (solving only; grounding is still upfront).",
+    )
+    parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=None,
+        help="Optional cap on candidate cards used for grounding (per position).",
+    )
+    parser.add_argument(
         "--json-out",
         type=str,
         default=None,
@@ -92,12 +104,16 @@ def main() -> int:
             required_combo_ids=args.combo_ids,
             constraints=constraints,
             max_models=args.max_models,
+            time_limit_seconds=args.time_limit_seconds,
+            max_candidates=args.max_candidates,
         )
     else:
         results = solver.enumerate_defense_pairs_for_required_combos(
             required_combo_ids=args.combo_ids,
             constraints=constraints,
             max_models=args.max_models,
+            time_limit_seconds=args.time_limit_seconds,
+            max_candidates=args.max_candidates,
         )
 
     print(f"Enumerated {len(results)} model(s) for {args.pos} combo_ids={args.combo_ids}")

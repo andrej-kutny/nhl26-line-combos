@@ -45,6 +45,10 @@ def main() -> int:
     parser.add_argument("--max-fwd", type=int, default=24)
     parser.add_argument("--max-def", type=int, default=14)
     parser.add_argument("--max-g", type=int, default=4)
+    parser.add_argument("--min-fwd1", type=int, default=None, help="Override OVR floor for FWD line 1 (slots 1..3).")
+    parser.add_argument("--min-fwd2", type=int, default=None, help="Override OVR floor for FWD line 2 (slots 4..6).")
+    parser.add_argument("--min-def12", type=int, default=None, help="Override OVR floor for DEF pairs 1–2 (slots 13..16).")
+    parser.add_argument("--min-g1", type=int, default=None, help="Override OVR floor for goalie slot 19 (G1).")
     parser.add_argument(
         "--json-out",
         type=str,
@@ -74,6 +78,10 @@ def main() -> int:
         target=target,
         num_solutions=args.num_solutions,
         time_limit_seconds=args.time_limit_seconds,
+        min_fwd_line1=args.min_fwd1,
+        min_fwd_line2=args.min_fwd2,
+        min_def_top4=args.min_def12,
+        min_g1=args.min_g1,
     )
     finished = datetime.now(timezone.utc).isoformat()
 

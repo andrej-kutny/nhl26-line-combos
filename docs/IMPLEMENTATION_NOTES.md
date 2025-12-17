@@ -66,6 +66,25 @@ source venv/bin/activate
 PYTHONPATH=. venv/bin/python scripts/run_full_team_bench_first.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 7200 --threads 4 --max-fwd 24 --max-def 14 --max-g 4 --bench-fwd-combo 28 --bench-def-sal-combo 37 --bench-max-models 200 --json-out out/full_team_bench_first.json
 ```
 
+Feasibility vs optimization:
+- Full-team programs contain `#maximize` and can spend a long time proving optimality (or time out before returning a model).
+- The bench-first script therefore runs a fast feasibility pass first (find any model) and only runs full optimization if you explicitly ask for it.
+- Related flags:
+  - `--feasibility-time-limit-seconds 30` (default): how long we wait to find the first feasible roster for a given bench selection.
+  - `--optimize-after-feasible`: once a feasible roster exists, run the full `#maximize` optimization.
+  - `--reduce-combos`: keep only the bench combo IDs in the fact base (useful to quickly validate feasibility).
+  - `--no-bench-requirements`: disable the “bench line/pair must activate a combo” constraints (debug/feasibility).
+
+Feasibility sweeps (recommended):
+- Full-team solving can become UNSAT purely due to strict per-slot OVR floors (line 1/2, top defense pairs, G1).
+- Instead of editing `src/asp/rules/full_team.lp`, you can override floors from the CLI:
+
+```bash
+cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
+source venv/bin/activate
+PYTHONPATH=. venv/bin/python scripts/run_full_team_bench_first.py --min-ovr 80 --max-salary 110 --target ovr --time-limit-seconds 600 --feasibility-time-limit-seconds 30 --threads 4 --max-fwd 24 --max-def 14 --max-g 4 --bench-fwd-combo 28 --bench-def-sal-combo 37 --bench-max-models 200 --min-fwd1 82 --min-fwd2 80 --min-def12 80 --min-g1 80 --json-out out/full_team_bench_first_relaxed.json
+```
+
 Note: the script uses *effective* salary/AP (`base - bonus`), so negative values are expected and simply indicate net budget gain.
 
 If you also want to force a second defense combo (e.g., an AP extender), pass `--bench-def-ap-combo <id>`. This is optional and may fail if your `full_team.lp` enforces a hard OVR floor on defense pair 2 (slots 15–16).

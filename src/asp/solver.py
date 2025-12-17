@@ -163,6 +163,11 @@ class ASPSolver:
         target: OptimizationTarget,
         num_solutions: int = 5,
         time_limit_seconds: int | None = None,
+        *,
+        min_fwd_line1: int | None = None,
+        min_fwd_line2: int | None = None,
+        min_def_top4: int | None = None,
+        min_g1: int | None = None,
     ) -> list[LineSolution]:
         forwards = self.loader.get_forwards()
         defense = self.loader.get_defense()
@@ -208,6 +213,13 @@ class ASPSolver:
         defense = defense[: self.max_fullteam_defense]
         goalies = goalies[: self.max_fullteam_goalies]
 
+        floor_facts = self._full_team_floor_facts(
+            min_fwd_line1=min_fwd_line1,
+            min_fwd_line2=min_fwd_line2,
+            min_def_top4=min_def_top4,
+            min_g1=min_g1,
+        )
+
         program = "\n".join(
             [
                 self._generate_full_team_facts(
@@ -219,6 +231,7 @@ class ASPSolver:
                     constraints=constraints,
                     target=target,
                 ),
+                floor_facts,
                 self._read_rules("base.lp"),
                 self._read_rules("full_team.lp"),
             ]
@@ -345,11 +358,43 @@ class ASPSolver:
         - Include top K players per combo condition (target-focused)
         - Cap total candidates to max_candidates_total (target-focused)
         """
-        # For pure OVR optimization, we only need the top part of the distribution.
-        # Including low-OVR cards just explodes the search space without improving the optimum.
+        # For OVR optimization we still need a cap-feasible pool for full-team.
+        # If we only keep the top tail by OVR, we often drop the cheap "filler"
+        # cards that make the salary cap satisfiable.
+        #
+        # Heuristic: keep top-by-OVR (quality) + top-by-cheapest (feasibility) +
+        # a few per combo-condition to avoid missing rare keys.
         if target == OptimizationTarget.OVR:
-            by_ovr = sorted(players, key=lambda p: p.overall, reverse=True)
-            return by_ovr[: min(len(by_ovr), 80)]
+            by_ovr = sorted(players, key=lambda p: int(p.overall), reverse=True)
+            has_salary = any(getattr(p, "salary", None) is not None for p in players)
+
+            selected_ids: set[str] = set()
+
+            top_ovr_n = min(80, len(by_ovr))
+            for p in by_ovr[:top_ovr_n]:
+                selected_ids.add(str(p.id))
+
+            if has_salary:
+                def salary_key(p) -> tuple[int, int, str]:
+                    salary = getattr(p, "salary", None)
+                    s = int(salary) if salary is not None else 10**9
+                    return (s, -int(p.overall), str(p.id))
+
+                by_salary = sorted(players, key=salary_key)
+                top_salary_n = min(80, len(by_salary))
+                for p in by_salary[:top_salary_n]:
+                    selected_ids.add(str(p.id))
+
+                for combo in combos:
+                    for cond in combo.get_conditions():
+                        matching = [p for p in players if p.matches_condition(cond.type, cond.key)]
+                        matching.sort(key=salary_key)
+                        for p in matching[:8]:
+                            selected_ids.add(str(p.id))
+
+            # Deterministic ordering: by OVR first.
+            selected = [p for p in by_ovr if str(p.id) in selected_ids]
+            return selected[: min(len(selected), 160)]
 
         max_total = self.max_candidates_total
         max_global = self.max_candidates_global
@@ -456,6 +501,31 @@ class ASPSolver:
         safe = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").strip()
         return f'"{safe}"'
 
+    @staticmethod
+    def _full_team_floor_facts(
+        *,
+        min_fwd_line1: int | None = None,
+        min_fwd_line2: int | None = None,
+        min_def_top4: int | None = None,
+        min_g1: int | None = None,
+    ) -> str:
+        """
+        Optional, tunable OVR floors for `full_team.lp`.
+
+        These are injected as simple facts and override the defaults defined in
+        the ASP file via negation-as-failure.
+        """
+        lines: list[str] = []
+        if min_fwd_line1 is not None:
+            lines.append(f"min_fwd_line1({int(min_fwd_line1)}).")
+        if min_fwd_line2 is not None:
+            lines.append(f"min_fwd_line2({int(min_fwd_line2)}).")
+        if min_def_top4 is not None:
+            lines.append(f"min_def_top4({int(min_def_top4)}).")
+        if min_g1 is not None:
+            lines.append(f"min_g1({int(min_g1)}).")
+        return "\n".join(lines)
+
     def _generate_facts(
         self,
         *,
@@ -480,6 +550,22 @@ class ASPSolver:
             if p.player_id is not None:
                 lines.append(
                     f"card_player({self._clingo_str(str(p.id))}, {self._clingo_str(str(p.player_id))})."
+                )
+            # Extra safety: depending on the upstream dataset, `player_id` can be card-specific
+            # (or otherwise insufficient) and may allow selecting multiple cards for the same
+            # real-world person. We therefore also emit a canonical identity key derived from
+            # (first_name, last_name, nationality) and enforce its uniqueness in `base.lp`.
+            first_name = getattr(p, "first_name", None)
+            last_name = getattr(p, "last_name", None)
+            nationality = getattr(p, "nationality", None)
+            if first_name and last_name and nationality:
+                canon_key = (
+                    f"{str(first_name).strip().lower()}|"
+                    f"{str(last_name).strip().lower()}|"
+                    f"{str(nationality).strip().lower()}"
+                )
+                lines.append(
+                    f"card_canon({self._clingo_str(str(p.id))}, {self._clingo_str(canon_key)})."
                 )
 
         if is_forward:
@@ -678,48 +764,74 @@ class ASPSolver:
         #
         # Using `on_model` callbacks with `yield_=False` keeps the run stable,
         # while still allowing multi-threaded solving.
-        ctl_args = [
-            "--warn=none",
-            "--opt-mode=optN",
-            "--models=0",
-            f"--parallel-mode={int(self.clingo_threads)}",
-        ]
-        ctl = clingo.Control(ctl_args)
-        if model_limit is not None:
-            ctl.configuration.solve.solve_limit = str(int(model_limit))
-        ctl.add("base", [], program)
-        ctl.ground([("base", [])])
+        def run_with_threads(threads: int) -> list[list]:
+            models: list[list] = []
+            best_cost: tuple[int, ...] | None = None
+            ctl_ref: list["clingo.Control | None"] = [None]
 
-        models: list[list] = []
-        best_cost: tuple[int, ...] | None = None
+            def on_model(model: "clingo.Model") -> bool:
+                nonlocal best_cost, models
+                cost = tuple(model.cost)
+                symbols = model.symbols(shown=True)
 
-        def on_model(model: "clingo.Model") -> bool:
-            nonlocal best_cost, models
-            cost = tuple(model.cost)
-            symbols = model.symbols(shown=True)
+                if best_cost is None or cost < best_cost:
+                    best_cost = cost
+                    models = [symbols]
+                elif cost == best_cost and len(models) < num_solutions:
+                    models.append(symbols)
 
-            if best_cost is None or cost < best_cost:
-                best_cost = cost
-                models = [symbols]
-            elif cost == best_cost and len(models) < num_solutions:
-                models.append(symbols)
+                if getattr(model, "optimality_proven", False) and best_cost is not None:
+                    if len(models) >= num_solutions:
+                        return False
+                return True
 
-            # Stop once optimality is proven and we have enough optimal models.
-            if getattr(model, "optimality_proven", False) and best_cost is not None:
-                if len(models) >= num_solutions:
-                    return False
-            return True
+            solve_error: list[BaseException] = []
 
-        cancel_timer: threading.Timer | None = None
-        if time_limit_seconds is not None and int(time_limit_seconds) > 0:
-            cancel_timer = threading.Timer(float(time_limit_seconds), ctl.interrupt)
-            cancel_timer.start()
+            def run_solve() -> None:
+                try:
+                    ctl_args = [
+                        "--warn=none",
+                        "--opt-mode=optN",
+                        "--models=0",
+                        f"--parallel-mode={int(threads)}",
+                    ]
+                    ctl = clingo.Control(ctl_args)
+                    ctl_ref[0] = ctl
+                    if model_limit is not None:
+                        ctl.configuration.solve.solve_limit = str(int(model_limit))
+                    ctl.add("base", [], program)
+                    ctl.ground([("base", [])])
+                    ctl.solve(on_model=on_model, yield_=False)
+                except BaseException as e:  # noqa: BLE001 - surface clingo errors to caller
+                    solve_error.append(e)
+
+            worker = threading.Thread(target=run_solve, daemon=True)
+            worker.start()
+
+            if time_limit_seconds is not None and int(time_limit_seconds) > 0:
+                worker.join(float(time_limit_seconds))
+                if worker.is_alive():
+                    if ctl_ref[0] is not None:
+                        ctl_ref[0].interrupt()
+                    # Give clingo a moment to react; if it doesn't, we still return
+                    # whatever best model we collected so far.
+                    worker.join(1.0)
+            else:
+                worker.join()
+
+            if solve_error:
+                raise solve_error[0]
+            return models
+
         try:
-            ctl.solve(on_model=on_model, yield_=False)
-        finally:
-            if cancel_timer is not None:
-                cancel_timer.cancel()
-        return models
+            return run_with_threads(self.clingo_threads)
+        except RuntimeError as e:
+            # On some macOS builds, parallel mode occasionally fails with:
+            #   RuntimeError: thread::join failed: Invalid argument
+            # Retry single-threaded to keep offline runs usable.
+            if self.clingo_threads > 1 and "thread::join failed" in str(e):
+                return run_with_threads(1)
+            raise
 
     def _enumerate(
         self,
@@ -727,6 +839,7 @@ class ASPSolver:
         *,
         max_models: int,
         model_limit: int | None = None,
+        time_limit_seconds: int | None = None,
     ) -> list[list]:
         """
         Enumerate stable models (no optimization assumptions).
@@ -741,27 +854,120 @@ class ASPSolver:
             )
 
         import clingo  # type: ignore
+        import threading
 
-        models_arg = "--models=0" if max_models == 0 else f"--models={int(max_models)}"
-        ctl = clingo.Control(
-            ["--warn=none", models_arg, f"--parallel-mode={int(self.clingo_threads)}"]
-        )
+        def run_with_threads(threads: int) -> list[list]:
+            models_arg = "--models=0" if max_models == 0 else f"--models={int(max_models)}"
+            models: list[list] = []
+            ctl_ref: list["clingo.Control | None"] = [None]
 
-        if model_limit is not None:
-            ctl.configuration.solve.solve_limit = str(int(model_limit))
-        ctl.add("base", [], program)
-        ctl.ground([("base", [])])
+            def on_model(model: "clingo.Model") -> bool:
+                nonlocal models
+                models.append(model.symbols(shown=True))
+                if max_models != 0 and len(models) >= max_models:
+                    return False
+                return True
 
-        models: list[list] = []
-        def on_model(model: "clingo.Model") -> bool:
-            nonlocal models
-            models.append(model.symbols(shown=True))
-            if max_models != 0 and len(models) >= max_models:
-                return False
-            return True
+            solve_error: list[BaseException] = []
 
-        ctl.solve(on_model=on_model, yield_=False)
-        return models
+            def run_solve() -> None:
+                try:
+                    ctl_args = ["--warn=none", models_arg, f"--parallel-mode={int(threads)}"]
+                    ctl = clingo.Control(ctl_args)
+                    ctl_ref[0] = ctl
+                    if model_limit is not None:
+                        ctl.configuration.solve.solve_limit = str(int(model_limit))
+                    ctl.add("base", [], program)
+                    ctl.ground([("base", [])])
+                    ctl.solve(on_model=on_model, yield_=False)
+                except BaseException as e:  # noqa: BLE001
+                    solve_error.append(e)
+
+            worker = threading.Thread(target=run_solve, daemon=True)
+            worker.start()
+
+            if time_limit_seconds is not None and int(time_limit_seconds) > 0:
+                worker.join(float(time_limit_seconds))
+                if worker.is_alive():
+                    if ctl_ref[0] is not None:
+                        ctl_ref[0].interrupt()
+                    worker.join(1.0)
+            else:
+                worker.join()
+
+            if solve_error:
+                raise solve_error[0]
+            return models
+
+        try:
+            return run_with_threads(self.clingo_threads)
+        except RuntimeError as e:
+            if self.clingo_threads > 1 and "thread::join failed" in str(e):
+                return run_with_threads(1)
+            raise
+
+    def _solve_any(
+        self,
+        program: str,
+        *,
+        max_models: int = 1,
+        time_limit_seconds: int | None = None,
+    ) -> tuple[list[list], str]:
+        """
+        Find any stable model quickly (ignores optimization).
+
+        This is useful as a feasibility check when the program contains
+        `#maximize` statements but we don't want to wait for optimality proofs.
+        """
+        if not self.is_available():
+            raise RuntimeError(
+                "Clingo is not available. Install dependencies from "
+                "`requirements.txt` in a Python version supported by `clingo`."
+            )
+
+        import clingo  # type: ignore
+
+        def run_with_threads(threads: int) -> tuple[list[list], str]:
+            models: list[list] = []
+
+            models_arg = "--models=0" if int(max_models) == 0 else f"--models={int(max_models)}"
+            ctl_args = [
+                "--warn=none",
+                "--opt-mode=ignore",
+                models_arg,
+                f"--parallel-mode={int(threads)}",
+            ]
+
+            def on_model(model: "clingo.Model") -> bool:
+                models.append(model.symbols(shown=True))
+                if int(max_models) != 0 and len(models) >= int(max_models):
+                    return False
+                return True
+
+            ctl = clingo.Control(ctl_args)
+            ctl.add("base", [], program)
+            ctl.ground([("base", [])])
+            if time_limit_seconds is not None and int(time_limit_seconds) > 0:
+                with ctl.solve(on_model=on_model, async_=True, yield_=False) as handle:
+                    finished = handle.wait(float(time_limit_seconds))
+                    if not finished:
+                        handle.cancel()
+                        handle.wait()
+                    res = handle.get()
+            else:
+                res = ctl.solve(on_model=on_model, yield_=False)
+            if res.unsatisfiable:
+                return models, "unsat"
+            if res.unknown or res.interrupted:
+                return models, "unknown"
+            return models, "sat"
+
+        try:
+            return run_with_threads(self.clingo_threads)
+        except RuntimeError as e:
+            if self.clingo_threads > 1 and "thread::join failed" in str(e):
+                return run_with_threads(1)
+            raise
 
     def enumerate_forward_lines_for_required_combos(
         self,
@@ -769,6 +975,8 @@ class ASPSolver:
         required_combo_ids: Iterable[int],
         constraints: OptimizationConstraints,
         max_models: int = 100,
+        time_limit_seconds: int | None = None,
+        max_candidates: int | None = None,
     ) -> list[LineSolution]:
         """
         Goal 1 (Stage B): enumerate concrete forward lines that satisfy a set of
@@ -807,6 +1015,15 @@ class ASPSolver:
         if candidate_ids is not None:
             forwards = [p for p in forwards if str(p.id) in candidate_ids]
 
+        if max_candidates is not None and int(max_candidates) > 0:
+            def bench_sort_key(p) -> tuple[int, int]:
+                salary = getattr(p, "salary", None)
+                salary_i = int(salary) if salary is not None else 10_000
+                return (salary_i, -int(p.overall))
+
+            forwards.sort(key=bench_sort_key)
+            forwards = forwards[: int(max_candidates)]
+
         required_facts = "\n".join([f"required_combo({int(c.id)})." for c in required])
         program = "\n".join(
             [
@@ -823,7 +1040,11 @@ class ASPSolver:
             ]
         )
 
-        models = self._enumerate(program, max_models=max_models)
+        models = self._enumerate(
+            program,
+            max_models=max_models,
+            time_limit_seconds=time_limit_seconds,
+        )
         return [
             self._parse_line_model(
                 symbols=model,
@@ -842,6 +1063,8 @@ class ASPSolver:
         required_combo_ids: Iterable[int],
         constraints: OptimizationConstraints,
         max_models: int = 100,
+        time_limit_seconds: int | None = None,
+        max_candidates: int | None = None,
     ) -> list[LineSolution]:
         """
         Goal 1 (Stage B): enumerate concrete defense pairs that satisfy a set of
@@ -876,6 +1099,15 @@ class ASPSolver:
         if candidate_ids is not None:
             defense = [p for p in defense if str(p.id) in candidate_ids]
 
+        if max_candidates is not None and int(max_candidates) > 0:
+            def bench_sort_key(p) -> tuple[int, int]:
+                salary = getattr(p, "salary", None)
+                salary_i = int(salary) if salary is not None else 10_000
+                return (salary_i, -int(p.overall))
+
+            defense.sort(key=bench_sort_key)
+            defense = defense[: int(max_candidates)]
+
         required_facts = "\n".join([f"required_combo({int(c.id)})." for c in required])
         program = "\n".join(
             [
@@ -892,7 +1124,11 @@ class ASPSolver:
             ]
         )
 
-        models = self._enumerate(program, max_models=max_models)
+        models = self._enumerate(
+            program,
+            max_models=max_models,
+            time_limit_seconds=time_limit_seconds,
+        )
         return [
             self._parse_line_model(
                 symbols=model,
