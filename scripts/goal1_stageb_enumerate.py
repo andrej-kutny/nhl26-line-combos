@@ -50,6 +50,12 @@ def main() -> int:
         description="Enumerate concrete lines/pairs for a required set of combo IDs (Goal 1 — Stage B)."
     )
     parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="data/",
+        help="Path to the dataset directory to load (default: data/).",
+    )
+    parser.add_argument(
         "--pos",
         required=True,
         choices=["fwd", "def"],
@@ -91,7 +97,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    solver = ASPSolver()
+    solver = ASPSolver(data_dir=args.data_dir)
     constraints = OptimizationConstraints(
         min_ovr=args.min_ovr,
         max_salary=args.max_salary,

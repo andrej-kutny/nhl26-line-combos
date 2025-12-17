@@ -27,6 +27,7 @@ class ASPSolver:
     def __init__(
         self,
         *,
+        data_dir: str = "data/",
         clingo_threads: int = 1,
         max_candidates_total: int = 350,
         max_candidates_global: int = 200,
@@ -35,7 +36,7 @@ class ASPSolver:
         max_fullteam_defense: int = 14,
         max_fullteam_goalies: int = 4,
     ) -> None:
-        self.loader = get_data_loader()
+        self.loader = get_data_loader(data_dir)
         self.clingo_threads = max(1, int(clingo_threads))
         self.max_candidates_total = max_candidates_total
         self.max_candidates_global = max_candidates_global

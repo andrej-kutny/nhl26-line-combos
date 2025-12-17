@@ -21,6 +21,7 @@ import os
 from pathlib import Path
 from functools import lru_cache
 from typing import Optional
+import math
 
 import pandas as pd
 
@@ -299,7 +300,7 @@ class DataLoader:
             player_id = int(row["player_id"])
             first_name, last_name = self._get_skater_name(player_id)
             salary_val = row.get("salary")
-            salary = int(salary_val) if pd.notna(salary_val) else None
+            salary = int(math.ceil(float(salary_val))) if pd.notna(salary_val) else None
 
             player = ForwardPlayer(
                 id=str(row["card_id"]).strip(),
@@ -357,7 +358,7 @@ class DataLoader:
             player_id = int(row["player_id"])
             first_name, last_name = self._get_skater_name(player_id)
             salary_val = row.get("salary")
-            salary = int(salary_val) if pd.notna(salary_val) else None
+            salary = int(math.ceil(float(salary_val))) if pd.notna(salary_val) else None
 
             player = DefensePlayer(
                 id=str(row["card_id"]).strip(),
@@ -418,7 +419,7 @@ class DataLoader:
             player_id = int(row["player_id"])
             first_name, last_name = self._get_goalie_name(player_id)
             salary_val = row.get("salary")
-            salary = int(salary_val) if pd.notna(salary_val) else None
+            salary = int(math.ceil(float(salary_val))) if pd.notna(salary_val) else None
 
             player = Goalie(
                 id=str(row["card_id"]).strip(),
@@ -490,6 +491,8 @@ class DataLoader:
             return "" if pd.isna(val) else str(val).strip()
         
         for idx, row in df.iterrows():
+            combo_id = row.get("combo_id")
+            combo_id_int = int(combo_id) if pd.notna(combo_id) else int(idx)
             t1_raw, k1_raw = _clean(row.get("type1")), _clean(row.get("key1"))
             t2_raw, k2_raw = _clean(row.get("type2")), _clean(row.get("key2"))
             t3_raw, k3_raw = _clean(row.get("type3")), _clean(row.get("key3"))
@@ -499,7 +502,7 @@ class DataLoader:
             if not (t1 and k1 and t2 and k2 and t3 and k3):
                 continue
             combo = ForwardLineCombo(
-                id=idx,
+                id=combo_id_int,
                 reward_amount=int(row["reward_amount"]),
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
@@ -552,6 +555,8 @@ class DataLoader:
             return "" if pd.isna(val) else str(val).strip()
         
         for idx, row in df.iterrows():
+            combo_id = row.get("combo_id")
+            combo_id_int = int(combo_id) if pd.notna(combo_id) else int(idx)
             t1_raw, k1_raw = _clean(row.get("type1")), _clean(row.get("key1"))
             t2_raw, k2_raw = _clean(row.get("type2")), _clean(row.get("key2"))
             t1, k1 = _normalize(t1_raw, k1_raw)
@@ -559,7 +564,7 @@ class DataLoader:
             if not (t1 and k1 and t2 and k2):
                 continue
             combo = DefenseLineCombo(
-                id=idx,
+                id=combo_id_int,
                 reward_amount=int(row["reward_amount"]),
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
