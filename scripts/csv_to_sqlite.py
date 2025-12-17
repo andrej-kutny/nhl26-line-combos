@@ -178,7 +178,6 @@ def create_database(data_dir: Path, db_path: Path):
     cursor.execute("""
         CREATE TABLE forward_combos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            combo_id INTEGER NOT NULL UNIQUE,
             reward_amount INTEGER NOT NULL,
             reward_type TEXT NOT NULL,
             type1 TEXT NOT NULL,
@@ -194,7 +193,6 @@ def create_database(data_dir: Path, db_path: Path):
     cursor.execute("""
         CREATE TABLE defense_combos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            combo_id INTEGER NOT NULL UNIQUE,
             reward_amount INTEGER NOT NULL,
             reward_type TEXT NOT NULL,
             type1 TEXT NOT NULL,
@@ -230,9 +228,7 @@ def create_database(data_dir: Path, db_path: Path):
     cursor.execute("CREATE INDEX idx_goalies_nationality ON goalies(nationality)")
     cursor.execute("CREATE INDEX idx_goalies_event ON goalies(event)")
     
-    # Combo indexes
-    cursor.execute("CREATE INDEX idx_forward_combos_combo_id ON forward_combos(combo_id)")
-    cursor.execute("CREATE INDEX idx_defense_combos_combo_id ON defense_combos(combo_id)")
+    # No additional indexes needed for combos (id is already primary key)
     
     # =========================================================================
     # LOAD DATA FROM CSV FILES
@@ -333,22 +329,25 @@ def create_database(data_dir: Path, db_path: Path):
     
     # Load forward combos
     print("  - Loading fwd_line_combos.csv...")
-    # "type1","key1","type2","key2"
     df = pd.read_csv(data_dir / "fwd_line_combos.csv")
-    for i in [1,2,3]:
+    # Convert type and key fields to uppercase
+    for i in [1, 2, 3]:
         df[f'type{i}'] = df[f'type{i}'].str.upper()
         df[f'key{i}'] = df[f'key{i}'].str.upper()
-    # combo_id is already in the CSV
+    # Select only needed columns (exclude combo_id from CSV)
+    df = df[['reward_amount', 'reward_type', 'type1', 'key1', 'type2', 'key2', 'type3', 'key3']]
     df.to_sql("forward_combos", conn, if_exists="append", index=False)
     print(f"    Loaded {len(df)} forward combos")
     
     # Load defense combos
     print("  - Loading def_line_combos.csv...")
     df = pd.read_csv(data_dir / "def_line_combos.csv")
-    for i in [1,2]:
+    # Convert type and key fields to uppercase
+    for i in [1, 2]:
         df[f'type{i}'] = df[f'type{i}'].str.upper()
         df[f'key{i}'] = df[f'key{i}'].str.upper()
-    # combo_id is already in the CSV
+    # Select only needed columns (exclude combo_id from CSV)
+    df = df[['reward_amount', 'reward_type', 'type1', 'key1', 'type2', 'key2']]
     df.to_sql("defense_combos", conn, if_exists="append", index=False)
     print(f"    Loaded {len(df)} defense combos")
     

@@ -506,7 +506,6 @@ class DataLoader:
         for row in cursor.fetchall():
             combo = ForwardLineCombo(
                 id=row["id"],
-                combo_id=row["combo_id"],
                 reward_amount=row["reward_amount"],
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
@@ -550,7 +549,6 @@ class DataLoader:
         for row in cursor.fetchall():
             combo = DefenseLineCombo(
                 id=row["id"],
-                combo_id=row["combo_id"],
                 reward_amount=row["reward_amount"],
                 reward_type=RewardType(row["reward_type"]),
                 condition1=ComboCondition(
