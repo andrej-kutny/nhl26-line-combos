@@ -33,7 +33,6 @@ Player cards: `data/fwd_filtered.csv`, `data/def_filtered.csv`, `data/g_filtered
 
 Triggered when **new players** are added or **new line combinations** are added.
 
-- **Inputs**:
 - **Outputs** (example target rankings):
   - **Best OVR gain**
   - **Best SAL gain**

@@ -1,6 +1,6 @@
 # Frontend Integration Guide
 
-This guide explains how to connect your frontend application to the API.
+This guide explains how to connect frontend application to the API.
 
 **Target frontend**: Angular v21
 
@@ -38,7 +38,7 @@ The API allows requests from any origin during development. For production, upda
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Your frontend URL
+    allow_origins=["http://localhost:5173"],  # frontend URL
     ...
 )
 ```
@@ -87,7 +87,7 @@ const results = await response.json();
 
 ### Dropdown / Autocomplete (Recommended)
 
-Use `/players/lookup` to build dynamic dropdowns that match your UX requirement:
+Use `/players/lookup` to build dynamic dropdowns that match UX requirement:
 - card mode label: `"{First} {Last} {OVR} - {EVENT} - {Position}"`
 - player mode label: `"{First} {Last} *"`
 
@@ -357,7 +357,7 @@ The API returns standard HTTP status codes:
 | 500 | Server error |
 | 501 | Not implemented (ASP solver pending) |
 
-Handle errors in your frontend:
+Handle errors in frontend:
 
 ```javascript
 async function apiCall(url, options = {}) {
