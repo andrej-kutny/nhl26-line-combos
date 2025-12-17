@@ -671,9 +671,17 @@ class ASPSolver:
         import clingo  # type: ignore
         import threading
 
+        # NOTE:
+        # On macOS with clingo 5.8.0, iterating a SolveHandle (yield_=True) while
+        # using parallel-mode > 1 can crash with:
+        #   RuntimeError: thread::join failed: Invalid argument
+        #
+        # Using `on_model` callbacks with `yield_=False` keeps the run stable,
+        # while still allowing multi-threaded solving.
         ctl_args = [
             "--warn=none",
             "--opt-mode=optN",
+            "--models=0",
             f"--parallel-mode={int(self.clingo_threads)}",
         ]
         ctl = clingo.Control(ctl_args)
@@ -684,25 +692,31 @@ class ASPSolver:
 
         models: list[list] = []
         best_cost: tuple[int, ...] | None = None
-        with ctl.solve(yield_=True) as handle:
-            cancel_timer: threading.Timer | None = None
-            if time_limit_seconds is not None and int(time_limit_seconds) > 0:
-                cancel_timer = threading.Timer(float(time_limit_seconds), handle.cancel)
-                cancel_timer.start()
-            for model in handle:
-                cost = tuple(model.cost)
-                symbols = model.symbols(shown=True)
 
-                if best_cost is None or cost < best_cost:
-                    best_cost = cost
-                    models = [symbols]
-                elif cost == best_cost and len(models) < num_solutions:
-                    models.append(symbols)
+        def on_model(model: "clingo.Model") -> bool:
+            nonlocal best_cost, models
+            cost = tuple(model.cost)
+            symbols = model.symbols(shown=True)
 
-                # Stop once optimality is proven and we have enough optimal models.
-                if getattr(model, "optimality_proven", False) and best_cost is not None:
-                    if len(models) >= num_solutions:
-                        break
+            if best_cost is None or cost < best_cost:
+                best_cost = cost
+                models = [symbols]
+            elif cost == best_cost and len(models) < num_solutions:
+                models.append(symbols)
+
+            # Stop once optimality is proven and we have enough optimal models.
+            if getattr(model, "optimality_proven", False) and best_cost is not None:
+                if len(models) >= num_solutions:
+                    return False
+            return True
+
+        cancel_timer: threading.Timer | None = None
+        if time_limit_seconds is not None and int(time_limit_seconds) > 0:
+            cancel_timer = threading.Timer(float(time_limit_seconds), ctl.interrupt)
+            cancel_timer.start()
+        try:
+            ctl.solve(on_model=on_model, yield_=False)
+        finally:
             if cancel_timer is not None:
                 cancel_timer.cancel()
         return models
@@ -728,14 +742,10 @@ class ASPSolver:
 
         import clingo  # type: ignore
 
-        if max_models == 0:
-            ctl = clingo.Control(
-                ["--warn=none", "--models=0", f"--parallel-mode={int(self.clingo_threads)}"]
-            )
-        else:
-            ctl = clingo.Control(
-                ["--warn=none", f"--models={int(max_models)}", f"--parallel-mode={int(self.clingo_threads)}"]
-            )
+        models_arg = "--models=0" if max_models == 0 else f"--models={int(max_models)}"
+        ctl = clingo.Control(
+            ["--warn=none", models_arg, f"--parallel-mode={int(self.clingo_threads)}"]
+        )
 
         if model_limit is not None:
             ctl.configuration.solve.solve_limit = str(int(model_limit))
@@ -743,11 +753,14 @@ class ASPSolver:
         ctl.ground([("base", [])])
 
         models: list[list] = []
-        with ctl.solve(yield_=True) as handle:
-            for model in handle:
-                models.append(model.symbols(shown=True))
-                if max_models != 0 and len(models) >= max_models:
-                    break
+        def on_model(model: "clingo.Model") -> bool:
+            nonlocal models
+            models.append(model.symbols(shown=True))
+            if max_models != 0 and len(models) >= max_models:
+                return False
+            return True
+
+        ctl.solve(on_model=on_model, yield_=False)
         return models
 
     def enumerate_forward_lines_for_required_combos(
