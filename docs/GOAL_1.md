@@ -39,7 +39,7 @@ Each entry is one of:
 ### Player/card facts
 
 For Goal 1 grounding we use player cards from SQLite with at least:
-- `card_id`, `player_id`
+- `id` (unique card ID), `player_id` (real player ID)
 - `team`, `nationality`, `event`
 - `overall`, `salary`, `ap` (if AP is modeled)
 

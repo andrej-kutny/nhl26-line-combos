@@ -49,16 +49,16 @@ for player in forwards:
     print(f"  Team: {player.team}")
     print(f"  Nationality: {player.nationality}")
     print(f"  Event: {player.event}")
-    print(f"  Card ID: {player.card_id}")  # unique per card
+    print(f"  Card ID: {player.id}")  # unique per card (auto-increment)
 ```
 
 ### Player vs Card identity (Important)
 
 The datasets are **card-based**:
-- `player.id` in the API models is **`player_id`** (not unique per card)
-- `player.card_id` is a **unique card identifier**
+- `player.id` in the API models is **unique auto-increment ID** (identifies specific card)
+- `player.player_id` is the **real player ID** (shared across multiple cards)
 
-For ASP solving, treat each **card** as a distinct entity (use `card_id` if you need uniqueness).
+For ASP solving, treat each **card** as a distinct entity (use `id` for uniqueness).
 
 ### Line Combinations
 
@@ -102,10 +102,9 @@ def generate_player_facts(players):
     """Generate ASP facts for players."""
     facts = []
     for p in players:
-        # NOTE: prefer card_id for uniqueness if you are solving at card-level.
-        # player(PlayerID, CardID, OVR, Team, Nationality, Event).
-        card_id = (p.card_id or "").lower()
-        fact = f'player({p.id}, "{card_id}", {p.overall}, "{p.team.lower()}", "{p.nationality.lower()}", "{p.event.lower()}").'
+        # NOTE: p.id is unique per card (auto-increment), p.player_id is shared across cards
+        # player(CardID, PlayerID, OVR, Team, Nationality, Event).
+        fact = f'player({p.id}, {p.player_id}, {p.overall}, "{p.team.lower()}", "{p.nationality.lower()}", "{p.event.lower()}").'
         facts.append(fact)
     return "\n".join(facts)
 
