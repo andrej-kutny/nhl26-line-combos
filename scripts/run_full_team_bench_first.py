@@ -119,6 +119,39 @@ def _force_include_players(
     return keep
 
 
+def _dedupe_keep_fixed(players: list, *, fixed_card_ids: set[str]) -> list:
+    """
+    Keep at most one card per underlying player, but never drop a fixed card.
+
+    Full-team ASP already enforces uniqueness via `card_player/2`, but doing this
+    here improves feasibility under tight candidate caps (we need enough unique
+    players to fill all slots).
+    """
+    best_by_player: dict[str, object] = {}
+    for p in players:
+        card_id = str(p.id)
+        player_id = getattr(p, "player_id", None)
+        key = str(player_id) if player_id is not None else card_id
+
+        existing = best_by_player.get(key)
+        if existing is None:
+            best_by_player[key] = p
+            continue
+
+        existing_card_id = str(existing.id)
+        if existing_card_id in fixed_card_ids:
+            # Never replace a fixed card.
+            continue
+        if card_id in fixed_card_ids:
+            best_by_player[key] = p
+            continue
+
+        if int(p.overall) > int(existing.overall):
+            best_by_player[key] = p
+
+    return list(best_by_player.values())
+
+
 def main() -> int:
     _bootstrap_import_path()
 
@@ -286,6 +319,15 @@ def main() -> int:
     for cid in sorted(fixed_def_ids):
         if cid not in {str(p.id) for p in defense} and cid in def_by_id:
             defense.append(def_by_id[cid])
+
+    # Dedupe *after* ensuring fixed cards are present, so we don't lose the exact fixed IDs.
+    forwards = _dedupe_keep_fixed(forwards, fixed_card_ids=fixed_fwd_ids)
+    defense = _dedupe_keep_fixed(defense, fixed_card_ids=fixed_def_ids)
+    goalies = _dedupe_keep_fixed(goalies, fixed_card_ids=fixed_g_ids)
+
+    forwards.sort(key=sort_key)
+    defense.sort(key=sort_key)
+    goalies.sort(key=sort_key)
 
     forwards = _force_include_players(
         players=forwards,
