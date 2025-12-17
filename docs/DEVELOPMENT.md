@@ -4,7 +4,7 @@ This guide covers setting up the development environment and running tests..
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - pip
 - Git
 
