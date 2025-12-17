@@ -64,6 +64,60 @@ def _best_by_effective_salary(lines) -> object:
 def _fixed_facts(picks: Iterable[FixedPick]) -> str:
     return "\n".join([f'select("{p.card_id}", {int(p.slot)}). % {p.label}' for p in picks])
 
+def _force_include_players(
+    *,
+    players: list,
+    required_card_ids: set[str],
+    cap: int,
+    sort_key,
+) -> list:
+    """
+    Ensure that a candidate pool contains all `required_card_ids`, even if they
+    would normally be truncated away by `cap`.
+
+    This is critical for "bench-first": we emit fixed `select(card_id, slot)`
+    facts, and those card_ids must also exist in the `player/ovr/salary/...`
+    fact base. If a fixed card_id is missing from the pool, the ASP program
+    becomes UNSAT.
+    """
+    if not required_card_ids:
+        return players[:cap]
+
+    by_id = {str(p.id): p for p in players}
+    required = [by_id[cid] for cid in required_card_ids if cid in by_id]
+    missing = sorted([cid for cid in required_card_ids if cid not in by_id])
+    if missing:
+        # Caller is expected to pre-merge required IDs from the full universe.
+        raise RuntimeError(
+            "Fixed card_id(s) missing from candidate pool; caller must include them "
+            f"from the full player universe first: {missing}"
+        )
+
+    # Remove required players from the pool to avoid duplicates, then take the top-k
+    # from the remainder.
+    remainder = [p for p in players if str(p.id) not in required_card_ids]
+    remainder.sort(key=sort_key)
+
+    # Keep all required, then fill up to cap with best remainder.
+    combined = required + remainder
+    # Stable and deterministic ordering for ASP facts.
+    combined.sort(key=sort_key)
+
+    # Ensure truncation never drops required players.
+    if len(combined) <= cap:
+        return combined
+    keep: list = []
+    kept_ids: set[str] = set()
+    for p in combined:
+        pid = str(p.id)
+        if pid in required_card_ids or len(keep) < cap:
+            if pid not in kept_ids:
+                keep.append(p)
+                kept_ids.add(pid)
+        if len(keep) >= cap and required_card_ids.issubset(kept_ids):
+            break
+    return keep
+
 
 def main() -> int:
     _bootstrap_import_path()
@@ -195,23 +249,62 @@ def main() -> int:
         excluded_ids=base_constraints.excluded_player_ids,
     )
 
-    forwards = solver._dedupe_best_card_per_player(forwards)
-    defense = solver._dedupe_best_card_per_player(defense)
-    goalies = solver._dedupe_best_card_per_player(goalies)
+    # NOTE:
+    # Do NOT dedupe cards here.
+    #
+    # Full-team solving already enforces "no two cards of the same player" via
+    # `card_player/2` + constraints in `base.lp`. Dedupe is a performance
+    # optimization, but it can break bench-first runs by dropping the exact
+    # fixed card IDs (when a player has multiple cards and the fixed one is not
+    # the highest-OVR card).
 
     target = OptimizationTarget(args.target)
-    forwards = solver._select_candidates(forwards, fwd_combos, target=target)
-    defense = solver._select_candidates(defense, def_combos, target=target)
-    goalies = goalies[:10]
+    forwards_universe = forwards
+    defense_universe = defense
+    goalies_universe = goalies
+
+    forwards = solver._select_candidates(forwards_universe, fwd_combos, target=target)
+    defense = solver._select_candidates(defense_universe, def_combos, target=target)
+    goalies = goalies_universe[:10]
 
     sort_key = solver._candidate_sort_key(target)
     forwards.sort(key=sort_key)
     defense.sort(key=sort_key)
     goalies.sort(key=sort_key)
 
-    forwards = forwards[: args.max_fwd]
-    defense = defense[: args.max_def]
-    goalies = goalies[: args.max_g]
+    fixed_fwd_ids = {p.card_id for p in fixed if p.slot in (7, 8, 9)}
+    fixed_def_ids = {p.card_id for p in fixed if p.slot in (17, 18)}
+    fixed_g_ids: set[str] = set()
+
+    # Ensure fixed bench picks are present even if candidate selection (e.g., top-OVR) would drop them.
+    fwd_by_id = {str(p.id): p for p in forwards_universe}
+    def_by_id = {str(p.id): p for p in defense_universe}
+
+    for cid in sorted(fixed_fwd_ids):
+        if cid not in {str(p.id) for p in forwards} and cid in fwd_by_id:
+            forwards.append(fwd_by_id[cid])
+    for cid in sorted(fixed_def_ids):
+        if cid not in {str(p.id) for p in defense} and cid in def_by_id:
+            defense.append(def_by_id[cid])
+
+    forwards = _force_include_players(
+        players=forwards,
+        required_card_ids=fixed_fwd_ids,
+        cap=args.max_fwd,
+        sort_key=sort_key,
+    )
+    defense = _force_include_players(
+        players=defense,
+        required_card_ids=fixed_def_ids,
+        cap=args.max_def,
+        sort_key=sort_key,
+    )
+    goalies = _force_include_players(
+        players=goalies,
+        required_card_ids=fixed_g_ids,
+        cap=args.max_g,
+        sort_key=sort_key,
+    )
 
     program = "\n".join(
         [
