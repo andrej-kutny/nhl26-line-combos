@@ -7,7 +7,7 @@ All teams (API, ASP, Frontend) should use these models for consistency.
 Data Structure Reference:
 - Players have: id (auto-increment), player_id, event, overall (OVR), nationality, league, team, position
 - Player cards include detailed stats (different for forwards/defense/goalies)
-- Line combos have: combo_id, reward_amount, reward_type (OVR/SAL/AP), conditions (type/key pairs)
+- Line combos have: id (auto-increment), reward_amount, reward_type (OVR/SAL/AP), conditions (type/key pairs)
 - Forward combos require 3 players, Defense combos require 2 players
 """
 
@@ -239,8 +239,7 @@ class ComboCondition(BaseModel):
 
 class LineComboBase(BaseModel):
     """Base model for line combinations."""
-    id: int = Field(..., description="Database auto-increment ID")
-    combo_id: int = Field(..., description="Original combo ID from CSV")
+    id: int = Field(..., description="Database auto-increment ID (unique identifier)")
     reward_amount: int = Field(..., ge=0, description="Bonus amount")
     reward_type: RewardType = Field(..., description="Type of reward")
     
@@ -322,8 +321,7 @@ class OptimizationRequest(BaseModel):
 
 class ActiveCombo(BaseModel):
     """A line combo that is activated by the solution."""
-    id: int
-    combo_id: int
+    id: int = Field(..., description="Line combo ID")
     reward_type: RewardType
     reward_amount: int
     description: str = Field("", description="Human-readable condition description")
