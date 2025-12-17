@@ -12,7 +12,7 @@ g_slot(19..20).
 :- select(P, S), S=1..3, ovr(P, OVR), OVR < 87.
 
 % Require solid second forward line (slots 4-6)
-:- select(P, S), S=4..6, ovr(P, OVR), OVR < 85.
+:- select(P, S), S=4..6, ovr(P, OVR), OVR < 84.
 
 % Exactly one player per slot
 1 { select(P, S) : player(P, _, _, _, _) } 1 :- fwd_slot(S).
@@ -22,11 +22,11 @@ g_slot(19..20).
 % No duplicate players across any slots
 :- select(P, S1), select(P, S2), S1 < S2.
 
-% Goalie 1 (slot 19) must meet a higher OVR threshold
-:- select(P, S), S=19, ovr(P, OVR), OVR < 87.
+% Goalie 1 (slot 19) should be solid (we use a relaxed MVP threshold here).
+:- select(P, S), S=19, ovr(P, OVR), OVR < 84.
 
-% Defense lines 1-2 should be solid
-:- select(P, S), S=13..16, ovr(P, OVR), OVR < 85.
+% Defense pairs 1-2 should be solid
+:- select(P, S), S=13..16, ovr(P, OVR), OVR < 84.
 
 % Defense pair 3 (bonus-oriented) must activate at least one defense combo
 :- not 1 { combo_active_def_in_pair(C, 3) }.
