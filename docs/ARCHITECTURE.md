@@ -8,8 +8,8 @@ The system uses a layered architecture with clear separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         PRESENTATION LAYER                               │
-│                     Frontend Application (TBD)                           │
+│                         PRESENTATION LAYER                              │
+│                     Frontend Application (Angular v21)                  │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │ REST API (JSON)
                                  ▼
@@ -32,11 +32,16 @@ The system uses a layered architecture with clear separation of concerns:
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
+**Planned upgrade**: introduce a **SQLite** data store (seeded from `data/*.csv`) to support:
+- fast dynamic search/autocomplete
+- richer filtering and aggregations
+- stable persistence beyond “CSV-as-database”
+
 ## Layer Descriptions
 
 ### 1. Presentation Layer (Frontend)
 
-**Status**: Technology TBD
+**Technology**: Angular v21
 
 **Responsibilities**:
 - User interface for line optimization
@@ -113,6 +118,10 @@ The system uses a layered architecture with clear separation of concerns:
 - Player information
 - Line combination definitions
 
+**Planned**:
+- seed and query a SQLite database (replacing most in-memory CSV scanning)
+- keep CSV files as source-of-truth inputs for ingestion
+
 **Files**:
 
 | File | Content |
@@ -176,6 +185,28 @@ Client              API              Core              ASP              Clingo
 
 ---
 
+## Product Goals → System Responsibilities
+
+### Goal 1 — Rank best line combination candidates (batch)
+
+Triggered when **players** or **line combinations** change:
+- Generate candidate combos (via ASP)
+- Rank by target metrics (OVR / SAL / AP and weighted combinations)
+- Filter to combos that are **fulfillable** by the current player card pool
+
+### Goal 2 — Suggest lines from user filters (interactive)
+
+From Angular UI, the API receives:
+- used players (exclude)
+- remaining salary cap / AP budget
+- fixed picks (by `card_id` or by `player_id` wildcard) *(planned)*
+
+The API pre-filters candidates and calls ASP to produce ranked solutions.
+
+### Goal 3 — Best full-team lineups (batch)
+
+Use the best combos and solve a larger “team lineup” optimization under global constraints.
+
 ## Key Design Decisions
 
 ### 1. Pydantic for Data Models
@@ -191,7 +222,7 @@ class Player(BaseModel):
 
 ### 2. Cached Data Loading
 
-**Why**: CSV files are read once and cached in memory for performance.
+**Why**: CSV files are read once and cached in memory for performance (until SQLite is introduced).
 
 ```python
 @lru_cache(maxsize=1)

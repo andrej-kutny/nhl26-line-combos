@@ -11,6 +11,7 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 ### Architecture & Design
 - [System Architecture](ARCHITECTURE.md) - How the system is structured
 - [Data Models](DATA_MODELS.md) - Player, combo, and API models
+- [Goal 1](GOAL_1.md) - Goal 1 pipeline (abstract combo optimization → player grounding)
 
 ### API Documentation
 - [Swagger UI](http://localhost:8000/docs) - Interactive API docs (when server running)
@@ -30,7 +31,7 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                              FRONTEND                                    │
-│                         (Technology TBD)                                 │
+│                           (Angular v21)                                  │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │ HTTP/REST
                                  ▼
@@ -49,6 +50,8 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 │   models        │    │   solver        │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
+
+**Planned**: migrate the Data Layer to **SQLite** (seeded from `data/*.csv`) to support fast search/autocomplete and richer filtering.
 
 ## 📁 Project Structure
 
