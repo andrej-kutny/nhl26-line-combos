@@ -161,16 +161,19 @@ def main() -> int:
 
     fixed_facts = _fixed_facts(fixed)
 
-    # Recreate the full-team candidate pools similarly to `ASPSolver.optimize_full_team`,
-    # but remove any already-fixed card IDs to shrink the search space.
+    # Recreate the full-team candidate pools similarly to `ASPSolver.optimize_full_team`.
+    #
+    # Important: do NOT remove the fixed card IDs from the fact base.
+    # We still need their `player/ovr/salary/...` facts so that:
+    # - combo activation for bench lines works,
+    # - OVR floors and caps can “see” those players,
+    # - and the objective counts their contribution.
+    #
+    # The fixed `select(card_id, slot).` facts plus the existing "no duplicate"
+    # constraint are sufficient to prevent reusing those cards elsewhere.
     forwards = solver.loader.get_forwards()
     defense = solver.loader.get_defense()
     goalies = solver.loader.get_goalies()
-
-    fixed_ids = {p.card_id for p in fixed}
-    forwards = [p for p in forwards if str(p.id) not in fixed_ids]
-    defense = [p for p in defense if str(p.id) not in fixed_ids]
-    goalies = [p for p in goalies if str(p.id) not in fixed_ids]
 
     fwd_combos = solver.loader.get_forward_combos()
     def_combos = solver.loader.get_defense_combos()
@@ -294,4 +297,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
