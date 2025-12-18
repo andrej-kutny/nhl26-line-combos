@@ -615,12 +615,20 @@ class ASPSolver:
             lines.append(f"max_ap({int(constraints.max_ap)}).")
 
         for p in players:
-            if p.sub_position:
-                lines.append(f"sub_pos({self._clingo_str(str(p.id))}, {self._clingo_str(p.sub_position.lower())}).")
+            sub_pos = getattr(p, "sub_position", None)
+            if not sub_pos:
+                pos = getattr(p, "position", None)
+                if pos and str(pos).upper() not in {"FWD", "DEF", "G"}:
+                    sub_pos = pos
+            if sub_pos:
+                lines.append(
+                    f"sub_pos({self._clingo_str(str(p.id))}, {self._clingo_str(str(sub_pos).lower())})."
+                )
             if p.salary is not None:
                 lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
-            if p.ability_points is not None:
-                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
+            ap = getattr(p, "ability_points", None)
+            if ap is not None:
+                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(ap)}).")
 
         return "\n".join(lines)
 
@@ -653,12 +661,20 @@ class ASPSolver:
                 lines.append(
                     f"card_player({self._clingo_str(str(p.id))}, {self._clingo_str(str(p.player_id))})."
                 )
-            if p.sub_position:
-                lines.append(f"sub_pos({self._clingo_str(str(p.id))}, {self._clingo_str(p.sub_position.lower())}).")
+            sub_pos = getattr(p, "sub_position", None)
+            if not sub_pos:
+                pos = getattr(p, "position", None)
+                if pos and str(pos).upper() not in {"FWD", "DEF", "G"}:
+                    sub_pos = pos
+            if sub_pos:
+                lines.append(
+                    f"sub_pos({self._clingo_str(str(p.id))}, {self._clingo_str(str(sub_pos).lower())})."
+                )
             if p.salary is not None:
                 lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
-            if p.ability_points is not None:
-                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
+            ap = getattr(p, "ability_points", None)
+            if ap is not None:
+                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(ap)}).")
 
         for p in defense:
             lines.append(
@@ -676,8 +692,9 @@ class ASPSolver:
                 )
             if p.salary is not None:
                 lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
-            if p.ability_points is not None:
-                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
+            ap = getattr(p, "ability_points", None)
+            if ap is not None:
+                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(ap)}).")
 
         for p in goalies:
             lines.append(
@@ -695,8 +712,9 @@ class ASPSolver:
                 )
             if p.salary is not None:
                 lines.append(f"salary({self._clingo_str(str(p.id))}, {int(p.salary)}).")
-            if p.ability_points is not None:
-                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(p.ability_points)}).")
+            ap = getattr(p, "ability_points", None)
+            if ap is not None:
+                lines.append(f"ap({self._clingo_str(str(p.id))}, {int(ap)}).")
 
         # Combo facts
         for c in fwd_combos:
@@ -1174,20 +1192,26 @@ class ASPSolver:
                 pid_key = str(pid)
                 if pid_key in player_map:
                     p = player_map[pid_key]
+                    sub_pos = getattr(p, "sub_position", None)
+                    if not sub_pos:
+                        pos = getattr(p, "position", None)
+                        if pos and str(pos).upper() not in {"FWD", "DEF", "G"}:
+                            sub_pos = pos
                     selected_by_slot[slot] = Player(
-                        id=str(p.id),
-                        player_id=p.player_id,
-                        first_name=p.first_name,
-                        last_name=p.last_name,
-                        sub_position=getattr(p, "sub_position", None),
-                        event=p.event,
-                        overall=p.overall,
-                        nationality=p.nationality,
-                        league=p.league,
-                        team=p.team,
-                        salary=getattr(p, "salary", None),
-                        ability_points=getattr(p, "ability_points", None),
-                        position=position,
+                        id=int(getattr(p, "id", 0) or 0),
+                        player_id=int(getattr(p, "player_id", 0) or 0),
+                        first_name=str(getattr(p, "first_name", "") or ""),
+                        last_name=str(getattr(p, "last_name", "") or ""),
+                        img=str(getattr(p, "img", "") or ""),
+                        event=str(getattr(p, "event", "") or ""),
+                        nationality=str(getattr(p, "nationality", "") or ""),
+                        league=str(getattr(p, "league", "") or ""),
+                        team=str(getattr(p, "team", "") or ""),
+                        weight=float(getattr(p, "weight", 0.0) or 0.0),
+                        height=int(getattr(p, "height", 0) or 0),
+                        salary=float(getattr(p, "salary", 0.0) or 0.0),
+                        overall=int(getattr(p, "overall", 0) or 0),
+                        position=str(position),
                     )
 
             elif name == "combo_active":
