@@ -48,7 +48,7 @@ def solve(files, extra_rules="", consts=None, ctl_opts=None):
     return res, models, opt
 
 def test_def_ovr_description():
-    res, models, cost = solve(["../../src/asp/def_ovr_description.lp", "../../src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
+    res, models, cost = solve(["src/asp/def_ovr_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
 
     assert res.satisfiable
     assert res.exhausted
@@ -62,7 +62,7 @@ def test_def_ovr_description():
         print("Optimization:", *cost)
 
 def test_def_ap_description():
-    res, models, cost = solve(["../../src/asp/def_ap_description.lp", "../../src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
+    res, models, cost = solve(["src/asp/def_ap_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
     assert res.satisfiable
     assert res.exhausted
     assert models
@@ -75,7 +75,7 @@ def test_def_ap_description():
         print("Optimization:", *cost)
 
 def test_def_sal_description():
-    res, models, cost = solve(["../../src/asp/def_sal_description.lp", "../../src/asp/main_description.lp"], extra_rules=extra, consts={
+    res, models, cost = solve(["src/asp/def_sal_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={
         "n": 2,
         "salary_cap_boost_10": 10,
         "salary_cap_boost_15": 15,})
@@ -91,7 +91,7 @@ def test_def_sal_description():
         print("Optimization:", *cost)
 
 def test_fwd_ap_description():
-    res, models, cost = solve(["../../src/asp/fwd_ap_description.lp", "../../src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
+    res, models, cost = solve(["src/asp/fwd_ap_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
     assert res.satisfiable
     assert res.exhausted
     assert models
@@ -104,7 +104,7 @@ def test_fwd_ap_description():
         print("Optimization:", *cost)
 
 def test_fwd_ovr_description():
-    res, models, cost = solve(["../../src/asp/fwd_ovr_description.lp", "../../src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
+    res, models, cost = solve(["src/asp/fwd_ovr_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
     assert res.satisfiable
     assert res.exhausted
     assert models
@@ -117,7 +117,7 @@ def test_fwd_ovr_description():
         print("Optimization:", *cost)
 
 def test_fwd_sal_description():
-    files = ["../../src/asp/fwd_sal_description.lp", "../../src/asp/main_description.lp"]
+    files = ["src/asp/fwd_sal_description.lp", "src/asp/main_description.lp"]
     show = "\n#show.\n#show best_forward_line_sal_combination/3.\n"
     res, models, cost = solve(
         files,
