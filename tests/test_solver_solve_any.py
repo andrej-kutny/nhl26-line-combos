@@ -5,8 +5,7 @@ def test_solve_any_ignores_optimization():
     from src.asp.solver import ASPSolver
 
     solver = ASPSolver()
-    if not solver.is_available():
-        pytest.skip("clingo not available in this environment")
+    assert solver.is_available(), "clingo is required for this test (see requirements.txt)"
 
     program = """
     a.
@@ -18,4 +17,3 @@ def test_solve_any_ignores_optimization():
     assert status == "sat"
     assert models
     assert any(sym.name == "a" for sym in models[0])
-

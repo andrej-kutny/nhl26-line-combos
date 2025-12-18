@@ -170,92 +170,10 @@ class ASPSolver:
         min_def_top4: int | None = None,
         min_g1: int | None = None,
     ) -> list[LineSolution]:
-        forwards = self.loader.get_forwards()
-        defense = self.loader.get_defense()
-        goalies = self.loader.get_goalies()
-
-        forwards = self.loader.filter_players(
-            forwards,
-            min_ovr=constraints.min_ovr,
-            team=constraints.required_team,
-            nationality=constraints.required_nationality,
-            event=constraints.required_event,
-            excluded_ids=constraints.excluded_player_ids,
+        raise NotImplementedError(
+            "Full-team optimization is out of scope for Goal 1 Stage B; "
+            "this PR focuses on enumerating single forward lines / defense pairs."
         )
-        defense = self.loader.filter_players(
-            defense,
-            min_ovr=constraints.min_ovr,
-            team=constraints.required_team,
-            nationality=constraints.required_nationality,
-            event=constraints.required_event,
-            excluded_ids=constraints.excluded_player_ids,
-        )
-        # Goalies: ignore require_center etc.
-
-        forwards = self._dedupe_best_card_per_player(forwards)
-        defense = self._dedupe_best_card_per_player(defense)
-        goalies = self._dedupe_best_card_per_player(goalies)
-
-        fwd_combos = self.loader.get_forward_combos()
-        def_combos = self.loader.get_defense_combos()
-
-        forwards = self._select_candidates(forwards, fwd_combos, target=target)
-        defense = self._select_candidates(defense, def_combos, target=target)
-        goalies = goalies[:10]  # cap goalies to reduce search space
-
-        # Keep the full-team candidate pool focused. For bonus-oriented targets we
-        # prefer cheaper cards to keep the cap feasible; for OVR we prefer raw OVR.
-        sort_key = self._candidate_sort_key(target)
-        forwards.sort(key=sort_key)
-        defense.sort(key=sort_key)
-        goalies.sort(key=sort_key)
-
-        forwards = forwards[: self.max_fullteam_forwards]
-        defense = defense[: self.max_fullteam_defense]
-        goalies = goalies[: self.max_fullteam_goalies]
-
-        floor_facts = self._full_team_floor_facts(
-            min_fwd_line1=min_fwd_line1,
-            min_fwd_line2=min_fwd_line2,
-            min_def_top4=min_def_top4,
-            min_g1=min_g1,
-        )
-
-        program = "\n".join(
-            [
-                self._generate_full_team_facts(
-                    forwards=forwards,
-                    defense=defense,
-                    goalies=goalies,
-                    fwd_combos=fwd_combos,
-                    def_combos=def_combos,
-                    constraints=constraints,
-                    target=target,
-                ),
-                floor_facts,
-                self._read_rules("base.lp"),
-                self._read_rules("full_team.lp"),
-            ]
-        )
-
-        models = self._solve(
-            program,
-            num_solutions=num_solutions,
-            model_limit=self._model_limit(target=target, is_full_team=True),
-            time_limit_seconds=time_limit_seconds,
-        )
-        return [
-            self._parse_full_team_model(
-                symbols=model,
-                forwards=forwards,
-                defense=defense,
-                goalies=goalies,
-                fwd_combos=fwd_combos,
-                def_combos=def_combos,
-                rank=i + 1,
-            )
-            for i, model in enumerate(models)
-        ]
 
     def validate_line(
         self,

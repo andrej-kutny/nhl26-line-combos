@@ -5,8 +5,7 @@ def test_canonical_identity_prevents_duplicate_person():
     from src.asp.solver import ASPSolver
 
     solver = ASPSolver()
-    if not solver.is_available():
-        pytest.skip("clingo not available in this environment")
+    assert solver.is_available(), "clingo is required for this test (see requirements.txt)"
 
     base_rules = solver._read_rules("base.lp")
 
@@ -31,4 +30,3 @@ def test_canonical_identity_prevents_duplicate_person():
     models, status = solver._solve_any(program, max_models=1, time_limit_seconds=2)
     assert status in {"unsat", "unknown"}
     assert models == []
-
