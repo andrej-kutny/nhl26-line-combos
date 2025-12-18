@@ -5,7 +5,7 @@ Run with: pytest tests/test_data_loader.py -v
 """
 
 import pytest
-from src.core.data_loader import DataLoader, get_data_loader
+from src.core.data import DataLoader, get_data_loader
 from src.core.models import ForwardPlayer, DefensePlayer, Goalie, ForwardLineCombo, DefenseLineCombo
 
 

@@ -10,6 +10,9 @@ a SQLite database at data/nhl26.db with the following tables:
 - goalies: Goalie player cards with all stats
 - forward_combos: Forward line combinations (3 players)
 - defense_combos: Defense line combinations (2 players)
+- goal1_runs: Goal 1 pipeline run metadata (timestamp, mode, parameters)
+- goal1_stage_a_results: Stage A abstract combo selections
+- goal1_concrete_lines: Stage B concrete lines with player assignments
 
 Usage:
     python scripts/csv_to_sqlite.py
@@ -229,6 +232,64 @@ def create_database(data_dir: Path, db_path: Path):
     cursor.execute("CREATE INDEX idx_goalies_event ON goalies(event)")
     
     # No additional indexes needed for combos (id is already primary key)
+    
+    # =========================================================================
+    # GOAL 1 RESULT TABLES
+    # =========================================================================
+    
+    print("Creating Goal 1 result tables...")
+    
+    # Goal 1 run metadata
+    cursor.execute("""
+        CREATE TABLE goal1_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_timestamp TEXT NOT NULL,
+            position_type TEXT NOT NULL CHECK(position_type IN ('forward', 'defense')),
+            optimization_mode TEXT NOT NULL CHECK(optimization_mode IN ('ovr', 'sal', 'ap', 'ovr_sal', 'ovr_sal_ap')),
+            parameters TEXT DEFAULT '{}',
+            dataset_hash TEXT
+        )
+    """)
+    
+    # Stage A results (abstract combo selections)
+    cursor.execute("""
+        CREATE TABLE goal1_stage_a_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER NOT NULL REFERENCES goal1_runs(id) ON DELETE CASCADE,
+            solution_rank INTEGER NOT NULL,
+            combo_ids TEXT NOT NULL,
+            gain_ovr INTEGER DEFAULT 0,
+            gain_sal INTEGER DEFAULT 0,
+            gain_ap INTEGER DEFAULT 0
+        )
+    """)
+    
+    # Stage B results (concrete lines)
+    cursor.execute("""
+        CREATE TABLE goal1_concrete_lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER NOT NULL REFERENCES goal1_runs(id) ON DELETE CASCADE,
+            stage_a_solution_id INTEGER REFERENCES goal1_stage_a_results(id) ON DELETE SET NULL,
+            player_ids TEXT NOT NULL,
+            activated_combo_ids TEXT NOT NULL,
+            total_ovr INTEGER DEFAULT 0,
+            total_salary REAL DEFAULT 0.0,
+            total_ap INTEGER DEFAULT 0,
+            ranking_score REAL DEFAULT 0.0,
+            line_key TEXT NOT NULL
+        )
+    """)
+    
+    # Create indexes for Goal 1 tables
+    print("Creating Goal 1 indexes...")
+    cursor.execute("CREATE INDEX idx_goal1_runs_position_mode ON goal1_runs(position_type, optimization_mode)")
+    cursor.execute("CREATE INDEX idx_goal1_runs_timestamp ON goal1_runs(run_timestamp)")
+    cursor.execute("CREATE INDEX idx_stage_a_run_id ON goal1_stage_a_results(run_id)")
+    cursor.execute("CREATE INDEX idx_stage_a_rank ON goal1_stage_a_results(run_id, solution_rank)")
+    cursor.execute("CREATE INDEX idx_concrete_lines_run_id ON goal1_concrete_lines(run_id)")
+    cursor.execute("CREATE INDEX idx_concrete_lines_stage_a ON goal1_concrete_lines(stage_a_solution_id)")
+    cursor.execute("CREATE INDEX idx_concrete_lines_key ON goal1_concrete_lines(run_id, line_key)")
+    cursor.execute("CREATE INDEX idx_concrete_lines_score ON goal1_concrete_lines(run_id, ranking_score DESC)")
     
     # =========================================================================
     # LOAD DATA FROM CSV FILES
