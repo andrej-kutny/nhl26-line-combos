@@ -20,6 +20,8 @@ import json
 import sys
 from pathlib import Path
 
+STAGEB_OUTPUT_SCHEMA_VERSION = 1
+
 
 def _bootstrap_import_path() -> None:
     repo_root = Path(__file__).resolve().parents[1]
@@ -38,6 +40,23 @@ def _parse_combo_ids(value: str) -> list[int]:
         except ValueError as e:
             raise argparse.ArgumentTypeError(f"Invalid combo id: {p!r}") from e
     return ids
+
+
+def build_stageb_payload(
+    *,
+    pos: str,
+    combo_ids: list[int],
+    constraints: dict,
+    solutions: list[dict],
+) -> dict:
+    return {
+        "schema_version": STAGEB_OUTPUT_SCHEMA_VERSION,
+        "pos": pos,
+        "combo_ids": combo_ids,
+        "constraints": constraints,
+        "count": len(solutions),
+        "solutions": solutions,
+    }
 
 
 def main() -> int:
@@ -161,13 +180,12 @@ def main() -> int:
 
     if args.json_out:
         out_path = Path(args.json_out).expanduser().resolve()
-        payload = {
-            "pos": args.pos,
-            "combo_ids": args.combo_ids,
-            "constraints": constraints.model_dump(),
-            "count": len(results),
-            "solutions": [r.model_dump() for r in results],
-        }
+        payload = build_stageb_payload(
+            pos=args.pos,
+            combo_ids=args.combo_ids,
+            constraints=constraints.model_dump(),
+            solutions=[r.model_dump() for r in results],
+        )
         out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         print(f"Wrote JSON to {out_path}")
 
