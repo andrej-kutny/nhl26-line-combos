@@ -3,8 +3,8 @@ import pytest
 from src.asp.solver import ASPSolver
 
 
-@pytest.mark.skipif(not ASPSolver.is_available(), reason="clingo not installed")
 def test_stageb_forward_enumerates_all_3_of_4_combinations():
+    assert ASPSolver.is_available(), "clingo is required for this test (see requirements.txt)"
     solver = ASPSolver()
     base_rules = solver._read_rules("base.lp")
     stageb_rules = solver._read_rules("goal1_stageb_forward.lp")
@@ -27,8 +27,8 @@ def test_stageb_forward_enumerates_all_3_of_4_combinations():
     assert len(models) == 4, "Expected C(4,3)=4 distinct sets due to symmetry breaking"
 
 
-@pytest.mark.skipif(not ASPSolver.is_available(), reason="clingo not installed")
 def test_stageb_defense_enumerates_pair_for_required_combo():
+    assert ASPSolver.is_available(), "clingo is required for this test (see requirements.txt)"
     solver = ASPSolver()
     base_rules = solver._read_rules("base.lp")
     stageb_rules = solver._read_rules("goal1_stageb_defense.lp")
@@ -47,3 +47,31 @@ def test_stageb_defense_enumerates_pair_for_required_combo():
     atoms = {str(s) for s in models[0]}
     assert "combo_active(20)" in atoms
 
+
+def test_stageb_forward_reports_non_required_active_combos_and_bonus_sums():
+    assert ASPSolver.is_available(), "clingo is required for this test (see requirements.txt)"
+    solver = ASPSolver()
+    base_rules = solver._read_rules("base.lp")
+    stageb_rules = solver._read_rules("goal1_stageb_forward.lp")
+
+    facts = """
+    player("p1", 80, "det", "canada", "fant"). salary("p1", 0). ap("p1", 0).
+    player("p2", 81, "det", "canada", "fant"). salary("p2", 0). ap("p2", 0).
+    player("p3", 82, "det", "canada", "fant"). salary("p3", 0). ap("p3", 0).
+    card_player("p1", "G1"). card_player("p2", "G2"). card_player("p3", "G3").
+
+    % Required: DET*3 => +20 SAL
+    fwd_combo(1, 20, sal, "team", "det", "team", "det", "team", "det").
+    required_combo(1).
+
+    % Not required but still active: CANADA*3 => +5 SAL
+    fwd_combo(2, 5, sal, "nationality", "canada", "nationality", "canada", "nationality", "canada").
+    """
+    program = "\n".join([facts, base_rules, stageb_rules])
+    models = solver._enumerate(program, max_models=10)
+    assert len(models) == 1
+
+    atoms = {str(s) for s in models[0]}
+    assert "combo_active(1)" in atoms
+    assert "combo_active(2)" in atoms
+    assert "total_salary_bonus(25)" in atoms
