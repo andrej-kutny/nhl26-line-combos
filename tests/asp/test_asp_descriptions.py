@@ -1,29 +1,7 @@
-# test_solver.py
 import clingo
+import pytest
 
-extra = r"""
-id("P000010"). id("P000011"). id("P000012"). id("P000013"). id("P000014"). id("P000015").
-type("P000010","player"). type("P000011","player"). type("P000012","player"). type("P000013","player"). type("P000014","player"). type("P000015","player").
-id("K000012"). id("K000013"). id("K000014"). id("K000015"). id("K000016"). id("K000017").
-type("K000012","card"). type("K000013","card"). type("K000014","card"). type("K000015","card"). type("K000016","card"). type("K000017","card").
-nationality("P000010","FIN"). has_card("P000010","K000012"). ovr("K000012",85). salary("K000012",60). position("K000012","C").  card_type("K000012","COM"). team("K000012","TOR").
-nationality("P000011","SWE"). has_card("P000011","K000013"). ovr("K000013",81). salary("K000013",20). position("K000013","C").  card_type("K000013","COM"). team("K000013","CAR").
-nationality("P000012","CAN"). has_card("P000012","K000014"). ovr("K000014",79). salary("K000014",9). position("K000014","C").  card_type("K000014","COM"). team("K000014","PIT").
-nationality("P000013","AUT"). has_card("P000013","K000015"). ovr("K000015",78). salary("K000015",8). position("K000015","C").  card_type("K000015","COM"). team("K000015","DET").
-nationality("P000014","USA"). has_card("P000014","K000016"). ovr("K000016",77). salary("K000016",7). position("K000016","C").  card_type("K000016","GB").  team("K000016","MTL").
-nationality("P000015","CAN"). has_card("P000015","K000017"). ovr("K000017",77). salary("K000017",7). position("K000017","C").  card_type("K000017","COM"). team("K000017","OTT").
-id("P000020"). type("P000020","player"). id("K000020"). type("K000020","card").
-nationality("P000020","SLOVAKIA"). has_card("P000020","K000020"). ovr("K000020",90). salary("K000020",120). position("K000020","C"). card_type("K000020","CAP"). team("K000020","TOR").
-id("P000021"). type("P000021","player"). id("K000021"). type("K000021","card").
-nationality("P000021","CZECHIA"). has_card("P000021","K000021"). ovr("K000021",88). salary("K000021",100). position("K000021","G"). card_type("K000021","COM"). team("K000021","CHI").
-id("P000022"). type("P000022","player"). id("K000022"). type("K000022","card").
-nationality("P000022","USA"). has_card("P000022","K000022"). ovr("K000022",86). salary("K000022",80). position("K000022","G"). card_type("K000022","CAP"). team("K000022","DET").
-id("P000023"). type("P000023","player"). id("K000023"). type("K000023","card").
-nationality("P000023","CAN"). has_card("P000023","K000023"). ovr("K000023",84). salary("K000023",70). position("K000023","G"). card_type("K000023","COM"). team("K000023","STL").
-id("P000024"). type("P000024","player"). id("K000024"). type("K000024","card").
-nationality("P000024","FINLAND"). has_card("P000024","K000024"). ovr("K000024",83). salary("K000024",50). position("K000024","G"). card_type("K000024","COM"). team("K000024","VAN").
-"""
-
+# ---------- runner ----------
 def solve(files, extra_rules="", consts=None, ctl_opts=None):
     opts = list(ctl_opts or [])
     if consts:
@@ -37,102 +15,219 @@ def solve(files, extra_rules="", consts=None, ctl_opts=None):
         ctl.ground([("base", []), ("extra", [])])
     else:
         ctl.ground([("base", [])])
-
-    models, opt = [], None
+    models = []
     def on_model(m):
-        nonlocal opt
         models.append(m.symbols(shown=True))
-        if m.cost:
-            opt = tuple(m.cost)
     res = ctl.solve(on_model=on_model)
-    return res, models, opt
+    return res, models
 
-def test_def_ovr_description():
-    res, models, cost = solve(["src/asp/def_ovr_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
+# ---------- shared base facts ----------
+BASE = r"""
+boost_type("OVR"). boost_type("SAL"). boost_type("AP").
+country("CANADA"). country("USA"). country("FINLAND").
+event("COM"). event("CAP"). event("TOTW").
+club("BOS"). club("VGK"). club("TOR"). club("DET").
+"""
 
+# ---------- main_description.lp ----------
+def test_main_description_forward_line_canonicalization():
+    extra = BASE + r"""
+    id("P1"). type("P1","player"). nationality("P1","CANADA").
+    id("P2"). type("P2","player"). nationality("P2","USA").
+    id("P3"). type("P3","player"). nationality("P3","USA").
+
+    id("K1"). type("K1","card"). has_card("P1","K1"). position("K1","C").
+    ovr("K1",92). salary("K1",10). team("K1","BOS"). card_type("K1","COM").
+
+    id("K2"). type("K2","card"). has_card("P2","K2"). position("K2","LW").
+    ovr("K2",90). salary("K2",10). team("K2","BOS"). card_type("K2","COM").
+
+    id("K3"). type("K3","card"). has_card("P3","K3"). position("K3","RW").
+    ovr("K3",88). salary("K3",10). team("K3","BOS"). card_type("K3","COM").
+
+    #show forward_line/3.
+    """
+    files = ["src/asp/main_description.lp"]
+    res, models = solve(files, extra_rules=extra)
     assert res.satisfiable
-    assert res.exhausted
-    assert models
+    fl = [s for s in models[0] if s.name == "forward_line"]
+    assert len(fl) == 1
 
-    # visible when running `pytest -s`
-    for i, m in enumerate(models, 1):
-        print(f"Answer: {i}")
-        print(" ".join(str(s) for s in m))
-    if cost is not None:
-        print("Optimization:", *cost)
+def test_main_description_defense_line_basic():
+    extra = BASE + r"""
+    id("P4"). type("P4","player"). nationality("P4","CANADA").
+    id("P5"). type("P5","player"). nationality("P5","USA").
 
-def test_def_ap_description():
-    res, models, cost = solve(["src/asp/def_ap_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
+    id("D1"). type("D1","card"). has_card("P4","D1"). position("D1","LD").
+    ovr("D1",89). salary("D1",9). team("D1","TOR"). card_type("D1","COM").
+
+    id("D2"). type("D2","card"). has_card("P5","D2"). position("D2","RD").
+    ovr("D2",87). salary("D2",9). team("D2","DET"). card_type("D2","COM").
+
+    #show defense_line/2.
+    """
+    files = ["src/asp/main_description.lp"]
+    res, models = solve(files, extra_rules=extra)
     assert res.satisfiable
-    assert res.exhausted
-    assert models
+    assert any(s.name == "defense_line" for s in models[0])
 
-    # visible when running `pytest -s`
-    for i, m in enumerate(models, 1):
-        print(f"Answer: {i}")
-        print(" ".join(str(s) for s in m))
-    if cost is not None:
-        print("Optimization:", *cost)
+# ---------- fwd_sal_description.lp ----------
+def test_fwd_sal_description_best_forward_line_sal_combination():
+    extra = BASE + r"""
+    % forwards
+    id("PF1"). type("PF1","player"). nationality("PF1","CANADA").
+    id("PF2"). type("PF2","player"). nationality("PF2","USA").
+    id("PF3"). type("PF3","player"). nationality("PF3","USA").
+    id("PF4"). type("PF4","player"). nationality("PF4","USA").
 
-def test_def_sal_description():
-    res, models, cost = solve(["src/asp/def_sal_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={
-        "n": 2,
-        "salary_cap_boost_10": 10,
-        "salary_cap_boost_15": 15,})
-    assert res.satisfiable
-    assert res.exhausted
-    assert models
+    id("F1"). type("F1","card"). has_card("PF1","F1"). position("F1","C").
+    ovr("F1",90). salary("F1",400). team("F1","BOS"). card_type("F1","COM").
 
-    # visible when running `pytest -s`
-    for i, m in enumerate(models, 1):
-        print(f"Answer: {i}")
-        print(" ".join(str(s) for s in m))
-    if cost is not None:
-        print("Optimization:", *cost)
+    id("F2"). type("F2","card"). has_card("PF2","F2"). position("F2","LW").
+    ovr("F2",88). salary("F2",350). team("F2","BOS"). card_type("F2","COM").
 
-def test_fwd_ap_description():
-    res, models, cost = solve(["src/asp/fwd_ap_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
-    assert res.satisfiable
-    assert res.exhausted
-    assert models
+    id("F3"). type("F3","card"). has_card("PF3","F3"). position("F3","RW").
+    ovr("F3",86). salary("F3",300). team("F3","BOS"). card_type("F3","COM").
 
-    # visible when running `pytest -s`
-    for i, m in enumerate(models, 1):
-        print(f"Answer: {i}")
-        print(" ".join(str(s) for s in m))
-    if cost is not None:
-        print("Optimization:", *cost)
+    id("F4"). type("F4","card"). has_card("PF4","F4"). position("F4","RW").
+    ovr("F4",82). salary("F4",200). team("F4","VGK"). card_type("F4","CAP").
 
-def test_fwd_ovr_description():
-    res, models, cost = solve(["src/asp/fwd_ovr_description.lp", "src/asp/main_description.lp"], extra_rules=extra, consts={"n": 2})
-    assert res.satisfiable
-    assert res.exhausted
-    assert models
+    % one SAL boost defined via a forward_combo over clubs/events
+    forward_combo("fc_s",200,"SAL",club("BOS"),club("BOS"),club("BOS")).
 
-    # visible when running `pytest -s`
-    for i, m in enumerate(models, 1):
-        print(f"Answer: {i}")
-        print(" ".join(str(s) for s in m))
-    if cost is not None:
-        print("Optimization:", *cost)
-
-def test_fwd_sal_description():
+    #show best_forward_line_sal_combination/3.
+    """
     files = ["src/asp/fwd_sal_description.lp", "src/asp/main_description.lp"]
-    show = "\n#show.\n#show best_forward_line_sal_combination/3.\n"
-    res, models, cost = solve(
+    res, models = solve(
         files,
-        extra_rules=extra + show,
-        consts={"salary_cap": 900},
-        ctl_opts=["--opt-mode=optN"]  # enumerate all optimal models
+        extra_rules=extra,
+        consts={"salary_cap": 900, "w_sal": 1},
+        ctl_opts=["--opt-mode=optN"]
     )
-
     assert res.satisfiable
-    assert res.exhausted
-    assert models
+    shown = [s for s in models[-1] if s.name == "best_forward_line_sal_combination"]
+    assert shown
 
-    # visible when running `pytest -s`
-    for i, m in enumerate(models, 1):
-        print(f"Answer: {i}")
-        print(" ".join(str(s) for s in m))
-    if cost is not None:
-        print("Optimization:", *cost)
+# ---------- fwd_ovr_description.lp ----------
+def test_fwd_ovr_description_best_forward_line_ovr_combination():
+    extra = BASE + r"""
+    id("P1"). type("P1","player"). nationality("P1","CANADA").
+    id("P2"). type("P2","player"). nationality("P2","USA").
+    id("P3"). type("P3","player"). nationality("P3","USA").
+
+    id("A"). type("A","card"). has_card("P1","A"). position("A","C").
+    ovr("A",88). salary("A",10). team("A","BOS"). card_type("A","TOTW").
+
+    id("B"). type("B","card"). has_card("P2","B"). position("B","LW").
+    ovr("B",85). salary("B",10). team("B","VGK"). card_type("B","COM").
+
+    id("C"). type("C","card"). has_card("P3","C"). position("C","RW").
+    ovr("C",84). salary("C",10). team("C","VGK"). card_type("C","COM").
+
+    % OVR boost defined by a forward_combo over countries or events
+    forward_combo("fc_o",3,"OVR",event("TOTW"),event("COM"),event("COM")).
+
+    #show best_forward_line_ovr_combination/3.
+    """
+    files = ["src/asp/fwd_ovr_description.lp", "src/asp/main_description.lp"]
+    res, models = solve(files, extra_rules=extra, ctl_opts=["--opt-mode=optN"])
+    assert res.satisfiable
+    shown = [s for s in models[-1] if s.name == "best_forward_line_ovr_combination"]
+    assert shown
+
+# ---------- fwd_ap_description.lp ----------
+def test_fwd_ap_description_best_forward_line_ap_combination():
+    extra = BASE + r"""
+    id("P1"). type("P1","player"). nationality("P1","CANADA").
+    id("P2"). type("P2","player"). nationality("P2","USA").
+    id("P3"). type("P3","player"). nationality("P3","USA").
+
+    id("A"). type("A","card"). has_card("P1","A"). position("A","C").
+    ovr("A",82). salary("A",10). team("A","BOS"). card_type("A","COM").
+
+    id("B"). type("B","card"). has_card("P2","B"). position("B","LW").
+    ovr("B",81). salary("B",10). team("B","BOS"). card_type("B","COM").
+
+    id("C"). type("C","card"). has_card("P3","C"). position("C","RW").
+    ovr("C",80). salary("C",10). team("C","BOS"). card_type("C","COM").
+
+    forward_combo("fc_ap",5,"AP",club("BOS"),club("BOS"),club("BOS")).
+
+    #show best_forward_line_ap_combination/3.
+    """
+    files = ["src/asp/fwd_ap_description.lp", "src/asp/main_description.lp"]
+    res, models = solve(files, extra_rules=extra, ctl_opts=["--opt-mode=optN"])
+    assert res.satisfiable
+    shown = [s for s in models[-1] if s.name == "best_forward_line_ap_combination"]
+    assert shown
+
+# ---------- def_ap_description.lp ----------
+def test_def_ap_description_boosted_def_line_exists():
+    extra = BASE + r"""
+    id("PD1"). type("PD1","player"). nationality("PD1","CANADA").
+    id("PD2"). type("PD2","player"). nationality("PD2","USA").
+
+    id("D1"). type("D1","card"). has_card("PD1","D1"). position("D1","LD").
+    ovr("D1",90). salary("D1",10). team("D1","TOR"). card_type("D1","COM").
+
+    id("D2"). type("D2","card"). has_card("PD2","D2"). position("D2","RD").
+    ovr("D2",88). salary("D2",10). team("D2","DET"). card_type("D2","CAP").
+
+    defense_combo("dc_ap",7,"AP",club("TOR"),event("COM")).
+
+    #show boosted_def_line/6.
+    """
+    files = ["src/asp/def_ap_description.lp", "src/asp/main_description.lp"]
+    res, models = solve(files, extra_rules=extra)
+    assert res.satisfiable
+    shown = [s for s in models[-1] if s.name == "boosted_def_line"]
+    assert shown
+
+# ---------- def_ovr_description.lp ----------
+def test_def_ovr_description_best_defense_line_ovr_combination():
+    extra = BASE + r"""
+    id("PD3"). type("PD3","player"). nationality("PD3","CANADA").
+    id("PD4"). type("PD4","player"). nationality("PD4","USA").
+
+    id("E1"). type("E1","card"). has_card("PD3","E1"). position("E1","LD").
+    ovr("E1",90). salary("E1",10). team("E1","TOR"). card_type("E1","COM").
+
+    id("E2"). type("E2","card"). has_card("PD4","E2"). position("E2","RD").
+    ovr("E2",87). salary("E2",10). team("E2","DET"). card_type("E2","COM").
+
+    defense_combo("dc_ovr",3,"OVR",club("TOR"),club("DET")).
+
+    #show best_defense_line_ovr_combination/2.
+    """
+    files = ["src/asp/def_ovr_description.lp", "src/asp/main_description.lp"]
+    res, models = solve(files, extra_rules=extra, ctl_opts=["--opt-mode=optN"])
+    assert res.satisfiable
+    shown = [s for s in models[-1] if s.name == "best_defense_line_ovr_combination"]
+    assert shown
+
+# ---------- def_sal_description.lp ----------
+def test_def_sal_description_best_defense_line_sal_combination():
+    extra = BASE + r"""
+    id("PG1"). type("PG1","player"). nationality("PG1","CANADA").
+    id("PG2"). type("PG2","player"). nationality("PG2","USA").
+
+    id("G1"). type("G1","card"). has_card("PG1","G1"). position("G1","G").
+    ovr("G1",86). salary("G1",600). team("G1","TOR"). card_type("G1","COM").
+
+    id("G2"). type("G2","card"). has_card("PG2","G2"). position("G2","G").
+    ovr("G2",84). salary("G2",450). team("G2","DET"). card_type("G2","COM").
+
+    defense_combo("dc_sal",150,"SAL",event("COM"),event("COM")).
+
+    #show best_defense_line_sal_combination/2.
+    """
+    files = ["src/asp/def_sal_description.lp", "src/asp/main_description.lp"]
+    res, models = solve(
+        files,
+        extra_rules=extra,
+        consts={"salary_cap": 1000, "w_sal": 1},
+        ctl_opts=["--opt-mode=optN"]
+    )
+    assert res.satisfiable
+    shown = [s for s in models[-1] if s.name == "best_defense_line_sal_combination"]
+    assert shown
