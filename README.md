@@ -245,3 +245,9 @@ This project is part of the **TKRR25 Knowledge Representation and Reasoning** co
 - **Pandas**: Data processing
 - **Angular v21**: Frontend framework
 - **SQLite (planned)**: Persistent storage and fast search/filter queries
+
+---
+
+## 📄 License
+
+This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
