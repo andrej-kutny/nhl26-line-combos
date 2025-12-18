@@ -25,7 +25,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routes import players, combos, optimize, stats
-from ..core.data_loader import get_data_loader
+from ..core.data import get_data_loader
 
 
 @asynccontextmanager

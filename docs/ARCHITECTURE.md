@@ -32,10 +32,10 @@ The system uses a layered architecture with clear separation of concerns:
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-**Planned upgrade**: introduce a **SQLite** data store (seeded from `data/*.csv`) to support:
-- fast dynamic search/autocomplete
-- richer filtering and aggregations
-- stable persistence beyond “CSV-as-database”
+**Data storage**: Uses **SQLite** database (`data/nhl26.db`) seeded from CSV files via `scripts/csv_to_sqlite.py`:
+- Fast indexed queries for filtering by team, nationality, event, OVR
+- Goal 1 pipeline result persistence (runs, Stage A, Stage B concrete lines)
+- CSV files remain as source-of-truth for data updates
 
 ## Layer Descriptions
 
@@ -78,16 +78,28 @@ The system uses a layered architecture with clear separation of concerns:
 
 **Responsibilities**:
 - Data models (Pydantic schemas)
-- Data loading and caching
+- Data loading and caching from SQLite
 - Filtering and preprocessing
 - Shared business logic
+- Goal 1 pipeline result storage
 
 **Components**:
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| Models | `models.py` | Pydantic data models |
-| DataLoader | `data_loader.py` | CSV loading, caching, filtering |
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Models | `models/` | Pydantic data models (split by domain) |
+| DataLoader | `data/loader.py` | SQLite loading, caching, filtering |
+| Goal1Store | `data/goal1_store.py` | Goal 1 pipeline result CRUD |
+
+**Model Files**:
+
+| File | Contents |
+|------|----------|
+| `models/enums.py` | Position, RewardType, OptimizationMode, etc. |
+| `models/players.py` | ForwardPlayer, DefensePlayer, Goalie, Player |
+| `models/combos.py` | ForwardLineCombo, DefenseLineCombo |
+| `models/api.py` | OptimizationRequest, LineSolution, etc. |
+| `models/goal1.py` | Goal1Run, Goal1StageAResult, Goal1ConcreteLine |
 
 ### 4. ASP Layer (Clingo)
 
@@ -114,15 +126,20 @@ The system uses a layered architecture with clear separation of concerns:
 **Location**: `data/`
 
 **Responsibilities**:
-- Store game data (CSV format)
-- Player information
+- Store game data in SQLite database
+- Player cards with full stats
 - Line combination definitions
+- Goal 1 pipeline results
 
-**Planned**:
-- seed and query a SQLite database (replacing most in-memory CSV scanning)
-- keep CSV files as source-of-truth inputs for ingestion
+**Database**: `nhl26.db` - Created via `python scripts/csv_to_sqlite.py`
 
-**Files**:
+**Tables**:
+- `forwards`, `defense`, `goalies` - Player cards
+- `skater_names`, `goalie_names` - Name lookups
+- `forward_combos`, `defense_combos` - Line combinations
+- `goal1_runs`, `goal1_stage_a_results`, `goal1_concrete_lines` - Goal 1 results
+
+**Source Files**:
 
 | File | Content |
 |------|---------|
@@ -220,14 +237,19 @@ class Player(BaseModel):
     team: str
 ```
 
-### 2. Cached Data Loading
+### 2. SQLite Data Storage
 
-**Why**: CSV files are read once and cached in memory for performance (until SQLite is introduced).
+**Why**: SQLite provides efficient indexed queries, better filtering, and stable persistence.
 
 ```python
+# Data loaded from SQLite with SQL WHERE clauses for efficient filtering
+def get_forwards(self, min_ovr=0, team=None, ...) -> list[ForwardPlayer]:
+    query = "SELECT * FROM forwards WHERE overall >= ? ..."
+    ...
+
+# Name lookups cached in memory (small tables)
 @lru_cache(maxsize=1)
-def get_forwards(self) -> list[ForwardPlayer]:
-    # Only reads file on first call
+def _load_skater_names(self) -> dict[int, tuple[str, str]]:
     ...
 ```
 

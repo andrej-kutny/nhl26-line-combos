@@ -122,7 +122,9 @@ class TestCSVToSQLiteIdempotency:
         expected_tables = {
             'skater_names', 'goalie_names',
             'forwards', 'defense', 'goalies',
-            'forward_combos', 'defense_combos'
+            'forward_combos', 'defense_combos',
+            # Goal 1 result tables
+            'goal1_runs', 'goal1_stage_a_results', 'goal1_concrete_lines'
         }
         assert set(metadata.keys()) == expected_tables, \
             f"Expected tables: {expected_tables}, got: {set(metadata.keys())}"

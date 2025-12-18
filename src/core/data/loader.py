@@ -2,21 +2,13 @@
 Data loader for NHL 26 Line Combos Optimizer.
 
 This module handles loading data from SQLite database and converting them to domain models.
-It serves as the single source of truth for data access across all components.
+It serves as the single source of truth for player and combo data access.
 
 Usage:
-    from src.core import DataLoader
+    from src.core.data import DataLoader
     
     loader = DataLoader("data/")
-    # Query directly with filters (uses SQL WHERE clauses)
     forwards = loader.get_forwards(min_ovr=85, team="TOR")
-    # Or get all
-    all_forwards = loader.get_forwards()
-
-Integration Points:
-    - API: Uses loader to serve player/combo data via endpoints
-    - ASP: Uses loader to generate ASP facts
-    - Frontend: Receives data through API (doesn't use loader directly)
 """
 
 import sqlite3
@@ -24,7 +16,7 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Optional
 
-from .models import (
+from ..models import (
     ForwardPlayer,
     DefensePlayer,
     Goalie,
@@ -32,7 +24,6 @@ from .models import (
     DefenseLineCombo,
     ComboCondition,
     RewardType,
-    Position,
 )
 
 
@@ -51,9 +42,6 @@ class DataLoader:
     Expected database schema:
         Tables: skater_names, goalie_names, forwards, defense, goalies,
                 forward_combos, defense_combos
-        
-        Note: Players can have multiple cards (same player_id, different card IDs),
-              each with unique auto-increment id.
     """
     
     def __init__(self, data_dir: str = "data/", db_name: str = "nhl26.db"):
@@ -62,13 +50,11 @@ class DataLoader:
         
         Args:
             data_dir: Path to directory containing database file.
-                      Relative paths are resolved from project root.
             db_name: Name of the SQLite database file.
         """
         self.data_dir = Path(data_dir)
         if not self.data_dir.is_absolute():
-            # Resolve relative to project root
-            project_root = Path(__file__).parent.parent.parent
+            project_root = Path(__file__).parent.parent.parent.parent
             self.data_dir = project_root / data_dir
         
         self.db_path = self.data_dir / db_name
@@ -82,7 +68,6 @@ class DataLoader:
                 f"Please run the migration script: python scripts/csv_to_sqlite.py"
             )
         
-        # Check that all required tables exist
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -108,20 +93,16 @@ class DataLoader:
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection with row factory enabled."""
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row  # Enable column access by name
+        conn.row_factory = sqlite3.Row
         return conn
     
     # =========================================================================
-    # NAME LOOKUPS (Cached - these are small lookup tables)
+    # NAME LOOKUPS (Cached)
     # =========================================================================
     
     @lru_cache(maxsize=1)
     def _load_skater_names(self) -> dict[int, tuple[str, str]]:
-        """Load skater names (forwards + defense) into a lookup dict.
-        
-        This is cached because it's a small lookup table that won't change
-        and is used frequently for name resolution.
-        """
+        """Load skater names into a lookup dict."""
         conn = self._get_connection()
         cursor = conn.cursor()
         
@@ -133,11 +114,7 @@ class DataLoader:
     
     @lru_cache(maxsize=1)
     def _load_goalie_names(self) -> dict[int, tuple[str, str]]:
-        """Load goalie names into a lookup dict.
-        
-        This is cached because it's a small lookup table that won't change
-        and is used frequently for name resolution.
-        """
+        """Load goalie names into a lookup dict."""
         conn = self._get_connection()
         cursor = conn.cursor()
         
@@ -158,7 +135,7 @@ class DataLoader:
         return names.get(player_id, ("Unknown", "Goalie"))
     
     # =========================================================================
-    # PLAYER LOADING (Direct SQL queries - NOT cached)
+    # PLAYER LOADING
     # =========================================================================
     
     def get_forwards(
@@ -172,26 +149,10 @@ class DataLoader:
         limit: Optional[int] = None,
         offset: int = 0,
     ) -> list[ForwardPlayer]:
-        """
-        Load forward players from database with optional SQL filters.
-        
-        Args:
-            min_ovr: Minimum overall rating
-            max_ovr: Maximum overall rating
-            team: Filter by team abbreviation
-            nationality: Filter by nationality
-            event: Filter by event type
-            position: Filter by position (C, LW, RW)
-            limit: Maximum number of results
-            offset: Number of results to skip (for pagination)
-            
-        Returns:
-            List of ForwardPlayer objects with names resolved
-        """
+        """Load forward players from database with optional SQL filters."""
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        # Build WHERE clause dynamically
         where_clauses = ["overall >= ?", "overall <= ?"]
         params = [min_ovr, max_ovr]
         
@@ -213,7 +174,6 @@ class DataLoader:
         
         where_sql = " AND ".join(where_clauses)
         
-        # Build complete query - select all columns
         query = f"""
             SELECT *
             FROM forwards
@@ -293,7 +253,6 @@ class DataLoader:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        # Build WHERE clause dynamically
         where_clauses = ["overall >= ?", "overall <= ?"]
         params = [min_ovr, max_ovr]
         
@@ -393,7 +352,6 @@ class DataLoader:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        # Build WHERE clause dynamically
         where_clauses = ["overall >= ?", "overall <= ?"]
         params = [min_ovr, max_ovr]
         
@@ -467,12 +425,7 @@ class DataLoader:
         return players
     
     def get_all_players(self) -> dict[str, list]:
-        """
-        Get all players organized by position.
-        
-        Returns:
-            Dict with keys 'forwards', 'defense', 'goalies'
-        """
+        """Get all players organized by position."""
         return {
             "forwards": self.get_forwards(),
             "defense": self.get_defense(),
@@ -480,27 +433,16 @@ class DataLoader:
         }
     
     # =========================================================================
-    # LINE COMBO LOADING (Combos are small, can be cached)
+    # LINE COMBO LOADING
     # =========================================================================
     
     @lru_cache(maxsize=1)
     def get_forward_combos(self) -> list[ForwardLineCombo]:
-        """
-        Load forward line combinations (3-player combos).
-        
-        Cached because combo tables are small and rarely change.
-        
-        Returns:
-            List of ForwardLineCombo objects
-        """
+        """Load forward line combinations (3-player combos)."""
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
-            SELECT *
-            FROM forward_combos
-            ORDER BY id
-        """)
+        cursor.execute("SELECT * FROM forward_combos ORDER BY id")
         
         combos = []
         for row in cursor.fetchall():
@@ -528,22 +470,11 @@ class DataLoader:
     
     @lru_cache(maxsize=1)
     def get_defense_combos(self) -> list[DefenseLineCombo]:
-        """
-        Load defense line combinations (2-player combos).
-        
-        Cached because combo tables are small and rarely change.
-        
-        Returns:
-            List of DefenseLineCombo objects
-        """
+        """Load defense line combinations (2-player combos)."""
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
-            SELECT *
-            FROM defense_combos
-            ORDER BY id
-        """)
+        cursor.execute("SELECT * FROM defense_combos ORDER BY id")
         
         combos = []
         for row in cursor.fetchall():
@@ -566,19 +497,14 @@ class DataLoader:
         return combos
     
     def get_all_combos(self) -> dict[str, list]:
-        """
-        Get all line combinations.
-        
-        Returns:
-            Dict with keys 'forward_combos', 'defense_combos'
-        """
+        """Get all line combinations."""
         return {
             "forward_combos": self.get_forward_combos(),
             "defense_combos": self.get_defense_combos(),
         }
     
     # =========================================================================
-    # FILTERING UTILITIES (Legacy - for backward compatibility)
+    # FILTERING UTILITIES
     # =========================================================================
     
     def filter_players(
@@ -593,18 +519,7 @@ class DataLoader:
         """
         Filter a list of players by various criteria.
         
-        **DEPRECATED**: Use the filter parameters in get_forwards(), get_defense(),
-        or get_goalies() instead for better performance (uses SQL WHERE clauses).
-        
-        This method is kept for backward compatibility.
-        
-        Args:
-            players: List of player objects to filter
-            min_ovr: Minimum overall rating
-            team: Filter by team abbreviation
-            nationality: Filter by nationality
-            event: Filter by event type
-            excluded_ids: List of database IDs to exclude
+        **DEPRECATED**: Use the filter parameters in get_forwards(), etc. instead.
         """
         excluded_ids = excluded_ids or []
         
@@ -629,12 +544,7 @@ class DataLoader:
         players: list,
         condition: ComboCondition,
     ) -> list:
-        """
-        Get all players that match a specific combo condition.
-        
-        Useful for the ASP team to determine which players can
-        satisfy which conditions in line combinations.
-        """
+        """Get all players that match a specific combo condition."""
         return [
             p for p in players
             if p.matches_condition(condition.type, condition.key)
@@ -645,16 +555,10 @@ class DataLoader:
     # =========================================================================
     
     def get_stats(self) -> dict:
-        """
-        Get dataset statistics using efficient SQL aggregation.
-        
-        Returns:
-            Dictionary with counts and other statistics
-        """
+        """Get dataset statistics using efficient SQL aggregation."""
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        # Get counts efficiently with SQL
         cursor.execute("SELECT COUNT(*) as count FROM forwards")
         forward_count = cursor.fetchone()["count"]
         
@@ -679,14 +583,11 @@ class DataLoader:
         cursor.execute("SELECT COUNT(*) as count FROM defense_combos")
         def_combo_count = cursor.fetchone()["count"]
         
-        # Get distinct values for teams, nationalities, events
         cursor.execute("""
             SELECT DISTINCT team FROM (
                 SELECT team FROM forwards
-                UNION
-                SELECT team FROM defense
-                UNION
-                SELECT team FROM goalies
+                UNION SELECT team FROM defense
+                UNION SELECT team FROM goalies
             ) ORDER BY team
         """)
         teams = [row["team"] for row in cursor.fetchall()]
@@ -694,10 +595,8 @@ class DataLoader:
         cursor.execute("""
             SELECT DISTINCT nationality FROM (
                 SELECT nationality FROM forwards
-                UNION
-                SELECT nationality FROM defense
-                UNION
-                SELECT nationality FROM goalies
+                UNION SELECT nationality FROM defense
+                UNION SELECT nationality FROM goalies
             ) ORDER BY nationality
         """)
         nationalities = [row["nationality"] for row in cursor.fetchall()]
@@ -705,10 +604,8 @@ class DataLoader:
         cursor.execute("""
             SELECT DISTINCT event FROM (
                 SELECT event FROM forwards
-                UNION
-                SELECT event FROM defense
-                UNION
-                SELECT event FROM goalies
+                UNION SELECT event FROM defense
+                UNION SELECT event FROM goalies
             ) ORDER BY event
         """)
         events = [row["event"] for row in cursor.fetchall()]
@@ -739,31 +636,3 @@ class DataLoader:
             "nationality_count": len(nationalities),
             "event_count": len(events),
         }
-
-
-# =============================================================================
-# SINGLETON INSTANCE
-# =============================================================================
-
-# Global loader instance for convenience
-# Can be imported directly: from src.core.data_loader import data_loader
-_data_loader: Optional[DataLoader] = None
-
-
-def get_data_loader(data_dir: str = "data/") -> DataLoader:
-    """
-    Get or create the global DataLoader instance.
-    
-    This provides a singleton-like access pattern while still
-    allowing custom data directories when needed.
-    
-    Usage:
-        from src.core.data_loader import get_data_loader
-        
-        loader = get_data_loader()
-        forwards = loader.get_forwards(min_ovr=85, team="TOR")
-    """
-    global _data_loader
-    if _data_loader is None:
-        _data_loader = DataLoader(data_dir)
-    return _data_loader
