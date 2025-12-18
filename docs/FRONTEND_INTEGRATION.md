@@ -389,6 +389,147 @@ if (status.features.full_team) {
 }
 ```
 
+## Best Lines Endpoints (Goal 1 Results)
+
+These endpoints expose pre-computed optimal line combinations from the Goal 1 pipeline.
+
+### List Available Runs
+
+```javascript
+// GET /best/runs?position_type=forward&optimization_mode=ovr
+const response = await fetch('http://localhost:8000/best/runs?position_type=forward');
+const { runs, total } = await response.json();
+
+// Response
+{
+  "runs": [
+    {
+      "id": 1,
+      "run_timestamp": "2025-12-18T10:30:00Z",
+      "position_type": "forward",
+      "optimization_mode": "ovr",
+      "parameters": { "k": 200 }
+    }
+  ],
+  "total": 1
+}
+```
+
+### Get Best Lines
+
+```javascript
+// GET /best/{pos}/{mode}?limit=10
+const response = await fetch('http://localhost:8000/best/forward/ovr?limit=10');
+const result = await response.json();
+
+// Response
+{
+  "success": true,
+  "run": {
+    "id": 1,
+    "run_timestamp": "2025-12-18T10:30:00Z",
+    "position_type": "forward",
+    "optimization_mode": "ovr"
+  },
+  "position_type": "forward",
+  "optimization_mode": "ovr",
+  "total_lines": 150,
+  "lines": [
+    {
+      "id": 1,
+      "players": [
+        {
+          "id": 123,
+          "player_id": 456,
+          "first_name": "Connor",
+          "last_name": "McDavid",
+          "overall": 99,
+          "team": "EDM",
+          "nationality": "CANADA",
+          "event": "TOTY",
+          "position": "FWD",
+          "salary": 5000000
+        }
+        // ... more players
+      ],
+      "activated_combo_ids": [1, 5, 12],
+      "total_ovr": 292,
+      "total_salary": 15000000,
+      "total_ap": 6,
+      "ranking_score": 298.0
+    }
+    // ... more lines
+  ]
+}
+```
+
+### Get Summary (Lighter Response)
+
+```javascript
+// GET /best/{pos}/{mode}/summary
+const response = await fetch('http://localhost:8000/best/forward/ovr/summary');
+const summary = await response.json();
+
+// Response
+{
+  "has_results": true,
+  "position_type": "forward",
+  "optimization_mode": "ovr",
+  "run": {
+    "id": 1,
+    "timestamp": "2025-12-18T10:30:00Z",
+    "parameters": { "k": 200 }
+  },
+  "total_lines": 150,
+  "top_scores": [298.0, 295.5, 294.0]
+}
+```
+
+### Best Lines TypeScript Types
+
+```typescript
+interface Goal1Run {
+  id: number;
+  run_timestamp: string;
+  position_type: 'forward' | 'defense';
+  optimization_mode: 'ovr' | 'sal' | 'ap' | 'ovr_sal' | 'ovr_sal_ap';
+  parameters: Record<string, unknown>;
+  dataset_hash?: string;
+}
+
+interface PlayerInfo {
+  id: number;
+  player_id: number;
+  first_name: string;
+  last_name: string;
+  overall: number;
+  team: string;
+  nationality: string;
+  event: string;
+  position: string;
+  salary: number;
+}
+
+interface ConcreteLineResponse {
+  id: number;
+  players: PlayerInfo[];
+  activated_combo_ids: number[];
+  total_ovr: number;
+  total_salary: number;
+  total_ap: number;
+  ranking_score: number;
+}
+
+interface BestLinesResponse {
+  success: boolean;
+  run: Goal1Run | null;
+  position_type: string;
+  optimization_mode: string;
+  total_lines: number;
+  lines: ConcreteLineResponse[];
+}
+```
+
 ## Questions?
 
 Contact the API team for:

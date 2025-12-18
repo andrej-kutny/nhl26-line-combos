@@ -7,7 +7,7 @@ These endpoints provide access to line combinations and their rewards.
 from typing import Optional
 from fastapi import APIRouter, Query, HTTPException
 
-from ...core.data_loader import get_data_loader
+from ...core.data import get_data_loader
 from ...core.models import ForwardLineCombo, DefenseLineCombo, RewardType
 
 router = APIRouter()
