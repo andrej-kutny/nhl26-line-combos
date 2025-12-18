@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 from typing import Iterable, Optional
 
-from ..core.data_loader import get_data_loader
+from ..core.data import get_data_loader
 from ..core.models import (
     ActiveCombo,
     LineSolution,
