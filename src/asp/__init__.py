@@ -27,6 +27,8 @@ from .interfaces import (
     StageAOutput,
     StageASolution,
     StageASolver,
+    PlayerAttribute,
+    ActiveComboInfo,
     # Stage B types
     StageBInput,
     StageBOutput,
@@ -48,6 +50,8 @@ __all__ = [
     "StageAOutput",
     "StageASolution",
     "StageASolver",
+    "PlayerAttribute",
+    "ActiveComboInfo",
     "StageBInput",
     "StageBOutput",
     "StageBSolver",

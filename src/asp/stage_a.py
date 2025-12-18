@@ -79,7 +79,14 @@ class StageAInputGenerator:
         combos: list[ForwardLineCombo],
         mode: str,
     ) -> list[str]:
-        """Generate ASP facts for forward combos."""
+        """
+        Generate ASP facts for forward combos.
+        
+        Format matches ASP team's expected input:
+        forward_combo(id, reward_amount, "REWARD_TYPE", entry1, entry2, entry3).
+        
+        Where entries are: team("X"), nationality("Y"), event("Z")
+        """
         facts = []
         
         for combo in combos:
@@ -87,25 +94,19 @@ class StageAInputGenerator:
             if not self._combo_matches_mode(combo.reward_type, mode):
                 continue
             
-            # Generate combo fact
-            # Format: forward_combo(id, reward_type, reward_amount, cond1_type, cond1_key, cond2_type, cond2_key, cond3_type, cond3_key).
             c1 = combo.condition1
             c2 = combo.condition2
             c3 = combo.condition3
             
+            # Format: forward_combo(id, reward_amount, "REWARD_TYPE", entry1, entry2, entry3).
+            # Entries use functor notation: team("OTT"), nationality("USA"), event("HH")
             fact = (
-                f"forward_combo({combo.id}, {combo.reward_type.value.lower()}, {combo.reward_amount}, "
-                f"{c1.type}, \"{c1.key}\", "
-                f"{c2.type}, \"{c2.key}\", "
-                f"{c3.type}, \"{c3.key}\")."
+                f'forward_combo({combo.id}, {combo.reward_amount}, "{combo.reward_type.value}", '
+                f'{c1.type}("{c1.key}"), '
+                f'{c2.type}("{c2.key}"), '
+                f'{c3.type}("{c3.key}")).'
             )
             facts.append(fact)
-            
-            # Also add structured condition facts for easier ASP processing
-            facts.append(f"combo_condition({combo.id}, 1, {c1.type}, \"{c1.key}\").")
-            facts.append(f"combo_condition({combo.id}, 2, {c2.type}, \"{c2.key}\").")
-            facts.append(f"combo_condition({combo.id}, 3, {c3.type}, \"{c3.key}\").")
-            facts.append(f"combo_reward({combo.id}, {combo.reward_type.value.lower()}, {combo.reward_amount}).")
         
         return facts
     
@@ -114,7 +115,14 @@ class StageAInputGenerator:
         combos: list[DefenseLineCombo],
         mode: str,
     ) -> list[str]:
-        """Generate ASP facts for defense combos."""
+        """
+        Generate ASP facts for defense combos.
+        
+        Format matches ASP team's expected input:
+        defense_combo(id, reward_amount, "REWARD_TYPE", entry1, entry2).
+        
+        Where entries are: team("X"), nationality("Y"), event("Z")
+        """
         facts = []
         
         for combo in combos:
@@ -124,16 +132,13 @@ class StageAInputGenerator:
             c1 = combo.condition1
             c2 = combo.condition2
             
+            # Format: defense_combo(id, reward_amount, "REWARD_TYPE", entry1, entry2).
             fact = (
-                f"defense_combo({combo.id}, {combo.reward_type.value.lower()}, {combo.reward_amount}, "
-                f"{c1.type}, \"{c1.key}\", "
-                f"{c2.type}, \"{c2.key}\")."
+                f'defense_combo({combo.id}, {combo.reward_amount}, "{combo.reward_type.value}", '
+                f'{c1.type}("{c1.key}"), '
+                f'{c2.type}("{c2.key}")).'
             )
             facts.append(fact)
-            
-            facts.append(f"combo_condition({combo.id}, 1, {c1.type}, \"{c1.key}\").")
-            facts.append(f"combo_condition({combo.id}, 2, {c2.type}, \"{c2.key}\").")
-            facts.append(f"combo_reward({combo.id}, {combo.reward_type.value.lower()}, {combo.reward_amount}).")
         
         return facts
     

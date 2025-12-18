@@ -40,14 +40,47 @@ class StageAInput:
 
 
 @dataclass
+class PlayerAttribute:
+    """
+    An abstract player attribute from Stage A output.
+    
+    Represents a constraint on a player slot without specifying a concrete player.
+    E.g., player_attr(1, team("DET")) means slot 1 needs team="DET".
+    """
+    slot: int  # 1, 2, 3 for forwards; 1, 2 for defense
+    attr_type: str  # "team", "nationality", "event"
+    attr_value: str  # e.g., "DET", "USA", "HH"
+
+
+@dataclass 
+class ActiveComboInfo:
+    """
+    Info about an active combo from ASP output.
+    
+    Maps to: fwd_active_combo(id, reward_amount, reward_type)
+    """
+    combo_id: int
+    reward_amount: int
+    reward_type: str  # "OVR", "SAL", "AP"
+
+
+@dataclass
 class StageASolution:
     """
     A single abstract solution from Stage A.
     
-    Contains which combos were selected and the gains achieved.
+    Contains which combos were selected, player slot attributes, and gains.
+    
+    ASP output format:
+        player_attr(1,team("DET")) player_attr(2,event("TOTW")) ...
+        fwd_active_combo(2,5,"AP") fwd_active_combo(39,3,"AP") ...
+        total_reward(11)
     """
     rank: int
     combo_ids: list[int]  # IDs of selected combos
+    active_combos: list[ActiveComboInfo] = field(default_factory=list)  # Detailed combo info
+    player_attrs: list[PlayerAttribute] = field(default_factory=list)  # Slot constraints
+    total_reward: int = 0  # Total reward from active combos
     gain_ovr: int = 0
     gain_sal: int = 0
     gain_ap: int = 0

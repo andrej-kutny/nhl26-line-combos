@@ -113,27 +113,51 @@ class StageAInput:
 ### Example `combo_facts`
 
 ```prolog
-% Forward combo facts
-forward_combo(1, ovr, 2, team, "TOR", nationality, "CANADA", event, "BASE").
-combo_condition(1, 1, team, "TOR").
-combo_condition(1, 2, nationality, "CANADA").
-combo_condition(1, 3, event, "BASE").
-combo_reward(1, ovr, 2).
+% Forward combo facts (3 conditions)
+% Format: forward_combo(id, reward_amount, "REWARD_TYPE", entry1, entry2, entry3).
+forward_combo(5, 6, "SAL", team("OTT"), nationality("USA"), team("BOS")).
+forward_combo(2, 5, "AP", team("DET"), event("SOTM"), nationality("GERMANY")).
 
-% Defense combo facts  
-defense_combo(5, sal, 500000, team, "BOS", nationality, "USA").
-combo_condition(5, 1, team, "BOS").
-combo_condition(5, 2, nationality, "USA").
-combo_reward(5, sal, 500000).
+% Defense combo facts (2 conditions)
+% Format: defense_combo(id, reward_amount, "REWARD_TYPE", entry1, entry2).
+defense_combo(2, 1, "OVR", team("DAL"), event("HH")).
+defense_combo(8, 3, "AP", nationality("CANADA"), team("TOR")).
 ```
 
 ### Output You Return
 
+The ASP output format (from Clingo):
+
+```
+player_attr(1,team("DET")) player_attr(2,team("MTL")) player_attr(3,team("TOR"))
+player_attr(1,event("SOTM")) player_attr(2,event("TOTW")) player_attr(3,event("TOTW"))
+player_attr(1,nationality("GERMANY")) player_attr(3,nationality("DENMARK"))
+fwd_active_combo(2,5,"AP") fwd_active_combo(39,3,"AP") fwd_active_combo(44,3,"AP")
+total_reward(11)
+```
+
+Which maps to these Python dataclasses:
+
 ```python
+@dataclass
+class PlayerAttribute:
+    slot: int           # 1, 2, 3 for forwards
+    attr_type: str      # "team", "nationality", "event"
+    attr_value: str     # e.g., "DET", "GERMANY"
+
+@dataclass
+class ActiveComboInfo:
+    combo_id: int
+    reward_amount: int
+    reward_type: str    # "OVR", "SAL", "AP"
+
 @dataclass
 class StageASolution:
     rank: int
-    combo_ids: list[int]  # Which combos were selected
+    combo_ids: list[int]
+    active_combos: list[ActiveComboInfo]
+    player_attrs: list[PlayerAttribute]  # Slot constraints
+    total_reward: int
     gain_ovr: int = 0
     gain_sal: int = 0
     gain_ap: int = 0

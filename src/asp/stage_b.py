@@ -198,7 +198,11 @@ class StageBInputGenerator:
         combos: list[ForwardLineCombo | DefenseLineCombo],
         position_type: str,
     ) -> list[str]:
-        """Generate ASP facts for the selected combos."""
+        """
+        Generate ASP facts for the selected combos.
+        
+        Uses same format as Stage A input for consistency with ASP team.
+        """
         facts = []
         
         for combo in combos:
@@ -208,16 +212,16 @@ class StageBInputGenerator:
             if position_type == "forward":
                 c3 = combo.condition3
                 fact = (
-                    f"selected_combo({combo.id}, {combo.reward_type.value.lower()}, {combo.reward_amount}, "
-                    f"{c1.type}, \"{c1.key}\", "
-                    f"{c2.type}, \"{c2.key}\", "
-                    f"{c3.type}, \"{c3.key}\")."
+                    f'forward_combo({combo.id}, {combo.reward_amount}, "{combo.reward_type.value}", '
+                    f'{c1.type}("{c1.key}"), '
+                    f'{c2.type}("{c2.key}"), '
+                    f'{c3.type}("{c3.key}")).'
                 )
             else:
                 fact = (
-                    f"selected_combo({combo.id}, {combo.reward_type.value.lower()}, {combo.reward_amount}, "
-                    f"{c1.type}, \"{c1.key}\", "
-                    f"{c2.type}, \"{c2.key}\")."
+                    f'defense_combo({combo.id}, {combo.reward_amount}, "{combo.reward_type.value}", '
+                    f'{c1.type}("{c1.key}"), '
+                    f'{c2.type}("{c2.key}")).'
                 )
             
             facts.append(fact)
