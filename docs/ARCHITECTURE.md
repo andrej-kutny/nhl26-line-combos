@@ -17,7 +17,7 @@ The system uses a layered architecture with clear separation of concerns:
 │                           API LAYER                                      │
 │                         FastAPI Backend                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ Routes: /players, /combos, /optimize, /stats                     │   │
+│  │ Routes: /players, /combos, /optimize, /stats, /best              │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │
@@ -71,6 +71,7 @@ The system uses a layered architecture with clear separation of concerns:
 | Combos Routes | `routes/combos.py` | Line combo endpoints |
 | Optimize Routes | `routes/optimize.py` | Optimization endpoints |
 | Stats Routes | `routes/stats.py` | Statistics endpoints |
+| Best Routes | `routes/best.py` | Goal 1 results endpoints |
 
 ### 3. Core Layer
 
