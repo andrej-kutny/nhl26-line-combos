@@ -14,13 +14,13 @@ This guide covers setting up the development environment and running tests..
 
 ```bash
 git clone git@github.com:andrej-kutny/nhl26-line-combos.git
-cd nhl26-line-combos
+cd nhl26-line-combos/backend
 ```
 
 ### 2. Create Virtual Environment
 
 ```bash
-# Create venv
+# Create venv (from backend/ directory)
 python3 -m venv venv
 
 # Activate (Linux/Mac)
@@ -85,58 +85,51 @@ python -m uvicorn src.api.main:app --reload --port 8000
 
 ```
 nhl26-line-combos/
-├── data/                      # Data files
-│   ├── nhl26.db              # SQLite database (generated)
-│   ├── fwd_filtered.csv      # Source CSV files
-│   ├── def_filtered.csv
-│   ├── g_filtered.csv
-│   ├── skater_id.csv
-│   ├── g_id.csv
-│   ├── fwd_line_combos.csv
-│   └── def_line_combos.csv
-├── docs/                      # Documentation
-│   ├── index.md              # Doc hub
-│   ├── ARCHITECTURE.md
-│   ├── DATA_MODELS.md
-│   ├── ASP_INTEGRATION.md
-│   ├── FRONTEND_INTEGRATION.md
-│   ├── GOAL_1.md             # Goal 1 specification
-│   └── DEVELOPMENT.md        # This file
-├── scripts/
-│   └── csv_to_sqlite.py      # Database migration script
-├── src/
-│   ├── __init__.py
-│   ├── core/                 # Shared code
-│   │   ├── __init__.py       # Re-exports all models and data classes
-│   │   ├── models/           # Pydantic models (split by domain)
-│   │   │   ├── __init__.py
-│   │   │   ├── enums.py      # Position, RewardType, OptimizationMode, etc.
-│   │   │   ├── players.py    # ForwardPlayer, DefensePlayer, Goalie, Player
-│   │   │   ├── combos.py     # ForwardLineCombo, DefenseLineCombo
-│   │   │   ├── api.py        # OptimizationRequest, LineSolution, etc.
-│   │   │   └── goal1.py      # Goal1Run, Goal1StageAResult, Goal1ConcreteLine
-│   │   └── data/             # Data access layer
-│   │       ├── __init__.py   # Singleton accessors
-│   │       ├── loader.py     # DataLoader (players, combos)
-│   │       └── goal1_store.py # Goal1ResultsStore (pipeline results)
-│   ├── api/                  # FastAPI app
+├── backend/                   # Python backend (you are here)
+│   ├── data/                  # Data files
+│   │   ├── nhl26.db          # SQLite database (generated)
+│   │   ├── fwd_filtered.csv  # Source CSV files
+│   │   ├── def_filtered.csv
+│   │   ├── g_filtered.csv
+│   │   ├── skater_id.csv
+│   │   ├── g_id.csv
+│   │   ├── fwd_line_combos.csv
+│   │   └── def_line_combos.csv
+│   ├── scripts/
+│   │   └── csv_to_sqlite.py  # Database migration script
+│   ├── src/
 │   │   ├── __init__.py
-│   │   ├── main.py           # App entry point
-│   │   └── routes/
-│   │       ├── __init__.py
-│   │       ├── players.py
-│   │       ├── combos.py
-│   │       ├── optimize.py
-│   │       └── stats.py
-│   └── asp/                  # ASP module (to implement)
-│       └── __init__.py
-├── tests/
-│   ├── __init__.py
-│   ├── test_csv_to_sqlite.py
-│   ├── test_data_loader.py
-│   └── test_goal1_storage.py
-├── .gitignore
-├── requirements.txt
+│   │   ├── core/             # Shared code
+│   │   │   ├── __init__.py   # Re-exports all models and data classes
+│   │   │   ├── models/       # Pydantic models (split by domain)
+│   │   │   │   ├── enums.py
+│   │   │   │   ├── players.py
+│   │   │   │   ├── combos.py
+│   │   │   │   ├── api.py
+│   │   │   │   └── goal1.py
+│   │   │   └── data/         # Data access layer
+│   │   │       ├── loader.py
+│   │   │       └── goal1_store.py
+│   │   ├── api/              # FastAPI app
+│   │   │   ├── main.py
+│   │   │   └── routes/
+│   │   └── asp/              # ASP/Clingo integration
+│   │       ├── pipeline.py
+│   │       ├── stage_a.py
+│   │       └── stage_b.py
+│   ├── tests/
+│   │   ├── test_csv_to_sqlite.py
+│   │   ├── test_data_loader.py
+│   │   └── test_goal1_storage.py
+│   └── requirements.txt
+├── docs/                      # Documentation
+│   ├── backend/              # Backend-specific docs
+│   │   ├── DEVELOPMENT.md    # This file
+│   │   ├── DATA_MODELS.md
+│   │   └── ASP_INTEGRATION.md
+│   ├── ARCHITECTURE.md
+│   ├── FRONTEND_INTEGRATION.md
+│   └── GOAL_1.md
 └── README.md
 ```
 
@@ -353,8 +346,8 @@ uvicorn src.api.main:app --port 8001
 ### Import Errors
 
 ```bash
-# Make sure you're in project root
-cd nhl26-line-combos
+# Make sure you're in backend directory
+cd nhl26-line-combos/backend
 
 # Activate virtual environment
 source venv/bin/activate
@@ -366,7 +359,7 @@ pip install -r requirements.txt
 ### Data File Not Found
 
 ```bash
-# Check data directory exists
+# Check data directory exists (from backend/)
 ls data/
 
 # Verify all required files
@@ -405,7 +398,7 @@ refactor: Simplify filter logic
 
 ## Related Documentation
 
-- [Architecture](ARCHITECTURE.md) - System design
+- [Architecture](../ARCHITECTURE.md) - System design
 - [ASP Integration](ASP_INTEGRATION.md) - ASP team guide
-- [Frontend Integration](FRONTEND_INTEGRATION.md) - Frontend guide
+- [Frontend Integration](../FRONTEND_INTEGRATION.md) - Frontend guide
 

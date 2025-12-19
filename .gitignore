@@ -65,7 +65,12 @@ logs/
 
 # ASP generated files
 *.lp.bak
-src/asp/generated/
+backend/src/asp/generated/
 
 # Line combo / Player images
-data/img/
+backend/data/img/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
