@@ -32,11 +32,11 @@ class TestASP_G1A:
         return res, models, opt, models_c
 
     def test_works(self):
-        for target in ["backend/src/asp/g1a_abstraction/target_optimise.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"]:
+        for target in ["src/asp/g1a_abstraction/target_optimise.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"]:
             for pos, datasets in [["def", [DEF_AP_C, DEF_SAL_C, DEF_OVR_C]], ["fwd", [FWD_SAL_C, FWD_AP_C, FWD_OVR_C]]]:
                 for dataset in datasets:
                     res, models, cost, models_c = self.solve(
-                        ["backend/src/asp/g1a_abstraction/rules.lp", f"backend/src/asp/g1a_abstraction/{pos}_rules.lp", target], 
+                        ["src/asp/g1a_abstraction/rules.lp", f"src/asp/g1a_abstraction/{pos}_rules.lp", target], 
                         extra_rules=dataset,
                         ctl_opts=["0"]
                     )
@@ -50,7 +50,7 @@ class TestASP_G1A:
         defense_combo(3, 3, "AP", team("HV71"), event("HEJ")).
         """
         res, models, cost, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_optimise.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_optimise.lp"],
             extra_rules=rules_simple,
             ctl_opts=["0"]
         )
@@ -64,7 +64,7 @@ class TestASP_G1A:
         defense_combo(2, 10, "AP", event("C"), event("D")).
         """
         res, models, cost, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_optimise.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_optimise.lp"],
             extra_rules=rules_conflict,
             ctl_opts=["0"]
         )
@@ -80,7 +80,7 @@ class TestASP_G1A:
         defense_combo(4, 5, "AP", event("C"), event("D")).
         """
         res, models, cost, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_optimise.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_optimise.lp"],
             extra_rules=rules_pref,
             ctl_opts=["0"]
         )
@@ -94,14 +94,14 @@ class TestASP_G1A:
         defense_combo(2, 1, "SAL", event("C"), event("D")).
         """
         res, _, cost, _ = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_optimise.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_optimise.lp"],
             extra_rules=rules_mult,
             ctl_opts=["0"]
         )
         assert cost[0] == -5
 
         res, _, cost, _ = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_optimise.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_optimise.lp"],
             extra_rules=rules_mult,
             consts={"w_sal": 10},
             ctl_opts=["0"]
@@ -109,7 +109,7 @@ class TestASP_G1A:
         assert cost[0] == -10
 
         res, _, cost, _ = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_optimise.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_optimise.lp"],
             extra_rules=rules_mult,
             consts={"w_ovr": 10},
             ctl_opts=["0"]
@@ -123,7 +123,7 @@ class TestASP_G1A:
         defense_combo(2, 5, "AP", event("C"), event("D")).
         """
         res, models, _, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"],
             extra_rules=rules_lookup,
             consts={"min_reward": 5},
             ctl_opts=["0"]
@@ -131,7 +131,7 @@ class TestASP_G1A:
         assert res.satisfiable
         
         res, models, _, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"],
             extra_rules=rules_lookup,
             consts={"min_reward": 10},
             ctl_opts=["0"]
@@ -139,7 +139,7 @@ class TestASP_G1A:
         assert res.satisfiable
 
         res, models, _, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"],
             extra_rules=rules_lookup,
             consts={"min_reward": 11},
             ctl_opts=["0"]
@@ -151,7 +151,7 @@ class TestASP_G1A:
         defense_combo(4, 1, "AP", team("Y"), team("Y")).
         """
         res, models, _, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"],
             extra_rules=rules_dupes,
             consts={"min_reward": 1},
             ctl_opts=["0"]
@@ -169,7 +169,7 @@ class TestASP_G1A:
         defense_combo(2, 5, "AP", event("A"), event("B")).
         """
         res, models, cost, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"],
             extra_rules=rules,
             consts={"min_reward": 15},
             ctl_opts=["0"]
@@ -185,7 +185,7 @@ class TestASP_G1A:
         defense_combo(1, 10, "AP", team("OTT"), event("EVENT")).
         """
         res, models, cost, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"],
             extra_rules=rules,
             consts={"min_reward": 1},
             ctl_opts=["0"]
@@ -199,7 +199,7 @@ class TestASP_G1A:
         defense_combo(2, 10, "AP", nationality("SWE"), event("EVENT")).
         """
         res, models, cost, count = self.solve(
-            ["backend/src/asp/g1a_abstraction/rules.lp", "backend/src/asp/g1a_abstraction/def_rules.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"],
+            ["src/asp/g1a_abstraction/rules.lp", "src/asp/g1a_abstraction/def_rules.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"],
             extra_rules=rules,
             consts={"min_reward": 1},
             ctl_opts=["0"]
@@ -216,7 +216,7 @@ class TestASP_G1A:
         for pos, datasets in [["def", [DEF_AP_C, DEF_SAL_C, DEF_OVR_C]], ["fwd", [FWD_SAL_C, FWD_AP_C, FWD_OVR_C]]]:
             for dataset in datasets:
                 res, models, _, count = self.solve(
-                    ["backend/src/asp/g1a_abstraction/rules.lp", f"backend/src/asp/g1a_abstraction/{pos}_rules.lp", "backend/src/asp/g1a_abstraction/target_threshold_lookup.lp"], 
+                    ["src/asp/g1a_abstraction/rules.lp", f"src/asp/g1a_abstraction/{pos}_rules.lp", "src/asp/g1a_abstraction/target_threshold_lookup.lp"], 
                     extra_rules=dataset,
                     consts={"min_reward": 5},
                     ctl_opts=["0"]
