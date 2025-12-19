@@ -1,0 +1,270 @@
+.page {
+  min-height: 100vh;
+  background: radial-gradient(1200px 600px at 10% -10%, #2a2f4a 0%, transparent 70%),
+    radial-gradient(900px 500px at 90% 0%, #2d1f3a 0%, transparent 65%),
+    #0b0d16;
+  color: #e7e9f7;
+}
+
+.header {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  background: rgba(11, 13, 22, 0.7);
+}
+
+.brand {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff4d4d, #7c4dff);
+  font-weight: 800;
+}
+
+.name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: rgba(231, 233, 247, 0.75);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(231, 233, 247, 0.8);
+}
+
+.field input,
+.field select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e7e9f7;
+  outline: none;
+  min-width: 160px;
+}
+
+.field.checkbox {
+  grid-auto-flow: column;
+  grid-template-columns: 18px auto;
+  align-items: center;
+  margin-left: 6px;
+}
+
+.primary,
+.secondary {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary {
+  background: linear-gradient(135deg, #ff4d4d, #7c4dff);
+  border: none;
+}
+
+.secondary {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.main {
+  padding: 20px 24px;
+}
+
+.status {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
+.panel {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 14px;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: rgba(231, 233, 247, 0.9);
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.solution {
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.solution.selected {
+  border-color: rgba(124, 77, 255, 0.8);
+  box-shadow: 0 0 0 2px rgba(124, 77, 255, 0.2);
+}
+
+.sol-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.rank {
+  font-weight: 900;
+  width: 46px;
+}
+
+.metric {
+  display: grid;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.metric .k {
+  font-size: 10px;
+  color: rgba(231, 233, 247, 0.7);
+}
+
+.metric .v {
+  font-weight: 800;
+}
+
+.players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+
+.combos {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.combo {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dim {
+  color: rgba(231, 233, 247, 0.7);
+  margin-left: 6px;
+}
+
+.details {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  background: rgba(124, 77, 255, 0.2);
+  border: 1px solid rgba(124, 77, 255, 0.35);
+}
+
+.detail-metrics {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.json {
+  max-height: 420px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+}
+
+.empty {
+  color: rgba(231, 233, 247, 0.7);
+  font-size: 13px;
+  padding: 12px;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .field input,
+  .field select {
+    min-width: 220px;
+  }
+}
+

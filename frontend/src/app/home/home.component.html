@@ -1,0 +1,157 @@
+<div class="page">
+  <header class="header">
+    <div class="brand">
+      <div class="logo">NHL 26</div>
+      <div>
+        <div class="name">Line Combos Optimizer</div>
+        <div class="subtitle">{{ title() }}</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <label class="field">
+        <span>API</span>
+        <input
+          [ngModel]="apiBaseUrl()"
+          (ngModelChange)="apiBaseUrl.set($event)"
+          placeholder="http://127.0.0.1:8000"
+        />
+      </label>
+
+      <label class="field">
+        <span>Mode</span>
+        <select [ngModel]="mode()" (ngModelChange)="mode.set($event)">
+          <option value="demo">Demo (Stage B JSON)</option>
+          <option value="live">Live (/optimize)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Position</span>
+        <select [ngModel]="pos()" (ngModelChange)="pos.set($event)">
+          <option value="fwd">Forward (3)</option>
+          <option value="def">Defense (2)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Target</span>
+        <select [ngModel]="target()" (ngModelChange)="target.set($event)">
+          <option value="ovr">OVR</option>
+          <option value="salary">Salary</option>
+          <option value="ap">AP</option>
+          <option value="balanced">Balanced</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Min OVR</span>
+        <input
+          type="number"
+          [ngModel]="minOvr()"
+          (ngModelChange)="minOvr.set($event)"
+          min="0"
+          max="99"
+        />
+      </label>
+
+      <label class="field checkbox">
+        <input
+          type="checkbox"
+          [ngModel]="requireCenter()"
+          (ngModelChange)="requireCenter.set($event)"
+        />
+        <span>Require center</span>
+      </label>
+
+      <label class="field">
+        <span>Top N</span>
+        <input
+          type="number"
+          [ngModel]="numSolutions()"
+          (ngModelChange)="numSolutions.set($event)"
+          min="1"
+          max="20"
+        />
+      </label>
+
+      <button class="primary" (click)="run()" [disabled]="loading()">
+        {{ loading() ? 'Running…' : 'Run' }}
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="status" *ngIf="status()">{{ status() }}</div>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Solutions</h2>
+
+        <div class="list" *ngIf="solutions().length; else empty">
+          <button
+            class="solution"
+            *ngFor="let sol of solutions()"
+            (click)="select(sol)"
+            [class.selected]="selectedSolution()?.rank === sol.rank"
+          >
+            <div class="sol-head">
+              <div class="rank">#{{ sol.rank }}</div>
+              <div class="metric">
+                <div class="k">OVR</div>
+                <div class="v">{{ sol.effective_ovr }}</div>
+              </div>
+              <div class="metric">
+                <div class="k">Salary</div>
+                <div class="v">{{ sol.total_salary }}</div>
+              </div>
+              <div class="metric">
+                <div class="k">AP</div>
+                <div class="v">{{ sol.total_ap }}</div>
+              </div>
+            </div>
+
+            <div class="players">
+              <span class="pill" *ngFor="let p of sol.players">
+                {{ p.first_name }} {{ p.last_name }} • {{ p.overall }} • {{ p.team }} • {{ p.position }}
+              </span>
+            </div>
+
+            <div class="combos" *ngIf="sol.active_combos.length">
+              <span class="combo" *ngFor="let c of sol.active_combos">
+                {{ c.reward_type }} +{{ c.reward_amount }} <span class="dim">{{ c.description }}</span>
+              </span>
+            </div>
+          </button>
+        </div>
+
+        <ng-template #empty>
+          <div class="empty">No results yet. Click “Run”.</div>
+        </ng-template>
+      </section>
+
+      <section class="panel">
+        <h2>Details</h2>
+
+        <div class="empty" *ngIf="!selectedSolution()">Select a solution to see details.</div>
+
+        <div *ngIf="selectedSolution() as sol" class="details">
+          <div class="detail-row">
+            <div class="badge">#{{ sol.rank }}</div>
+            <div class="detail-metrics">
+              <div><b>Base OVR</b> {{ sol.total_base_ovr }}</div>
+              <div><b>OVR bonus</b> {{ sol.ovr_bonus }}</div>
+              <div><b>Effective OVR</b> {{ sol.effective_ovr }}</div>
+            </div>
+          </div>
+
+          <button class="secondary" (click)="validateSelected()" [disabled]="loading()">
+            Validate line/pair
+          </button>
+
+          <pre class="json" *ngIf="validateResult()">{{ validateResult() | json }}</pre>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
