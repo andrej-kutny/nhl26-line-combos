@@ -219,14 +219,19 @@ class PlaceholderSolver(ASPSolverInterface):
             line_players = [
                 Player(
                     id=p.id,
+                    player_id=p.player_id,
                     first_name=p.first_name,
                     last_name=p.last_name,
+                    img=p.img,
                     event=p.event,
                     overall=p.overall,
                     nationality=p.nationality,
                     league=p.league,
                     team=p.team,
-                    position=Position.FORWARD,
+                    weight=p.weight,
+                    height=p.height,
+                    salary=p.salary,
+                    position=p.position,
                 )
                 for p in players
             ]
@@ -284,14 +289,19 @@ class PlaceholderSolver(ASPSolverInterface):
             line_players = [
                 Player(
                     id=p.id,
+                    player_id=p.player_id,
                     first_name=p.first_name,
                     last_name=p.last_name,
+                    img=p.img,
                     event=p.event,
                     overall=p.overall,
                     nationality=p.nationality,
                     league=p.league,
                     team=p.team,
-                    position=Position.DEFENSE,
+                    weight=p.weight,
+                    height=p.height,
+                    salary=p.salary,
+                    position=p.position,
                 )
                 for p in players
             ]
@@ -608,4 +618,3 @@ async def get_solver_status():
             else "Clingo ASP solver active"
         ),
     }
-
