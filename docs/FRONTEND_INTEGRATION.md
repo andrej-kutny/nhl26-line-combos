@@ -15,7 +15,7 @@ Development: http://localhost:8000
 ### 1. Start the API Server
 
 ```bash
-cd nhl26-line-combos
+cd nhl26-line-combos/backend
 source venv/bin/activate
 uvicorn src.api.main:app --reload --port 8000
 ```
@@ -33,7 +33,7 @@ Open http://localhost:8000/docs for interactive Swagger UI.
 
 ## CORS
 
-The API allows requests from any origin during development. For production, update `src/api/main.py`:
+The API allows requests from any origin during development. For production, update `backend/src/api/main.py`:
 
 ```python
 app.add_middleware(

@@ -26,13 +26,13 @@ The system uses a layered architecture with clear separation of concerns:
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  CORE LAYER     │    │  ASP LAYER      │    │  DATA LAYER     │
 │                 │    │                 │    │                 │
-│  • Models       │◄───│  • Solver       │    │  • CSV Files    │
-│  • DataLoader   │    │  • Rules        │    │  • Facts        │
-│  • Filters      │    │  • Parser       │    │                 │
+│  • models/      │◄───│  • Pipeline     │    │  • SQLite DB    │
+│  • data/        │    │  • Stage A/B    │    │  • CSV Files    │
+│  • Goal1Store   │    │  • Rules (*.lp) │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-**Data storage**: Uses **SQLite** database (`data/nhl26.db`) seeded from CSV files via `scripts/csv_to_sqlite.py`:
+**Data storage**: Uses **SQLite** database (`backend/data/nhl26.db`) seeded from CSV files via `backend/scripts/csv_to_sqlite.py`:
 - Fast indexed queries for filtering by team, nationality, event, OVR
 - Goal 1 pipeline result persistence (runs, Stage A, Stage B concrete lines)
 - CSV files remain as source-of-truth for data updates
@@ -53,7 +53,7 @@ The system uses a layered architecture with clear separation of concerns:
 
 ### 2. API Layer (FastAPI)
 
-**Location**: `src/api/`
+**Location**: `backend/src/api/`
 
 **Responsibilities**:
 - HTTP request handling
@@ -75,7 +75,7 @@ The system uses a layered architecture with clear separation of concerns:
 
 ### 3. Core Layer
 
-**Location**: `src/core/`
+**Location**: `backend/src/core/`
 
 **Responsibilities**:
 - Data models (Pydantic schemas)
@@ -104,12 +104,13 @@ The system uses a layered architecture with clear separation of concerns:
 
 ### 4. ASP Layer (Clingo)
 
-**Location**: `src/asp/`
+**Location**: `backend/src/asp/`
 
-**Status**: To be implemented by ASP team
+**Status**: Pipeline scaffolding complete, ASP solvers in progress
 
 **Responsibilities**:
-- Generate ASP facts from data
+- Goal 1 pipeline orchestration (Stage A → Stage B → Storage)
+- Generate ASP facts from combo/player data
 - Define optimization rules
 - Run Clingo solver
 - Parse solutions
@@ -118,13 +119,24 @@ The system uses a layered architecture with clear separation of concerns:
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| Solver | `solver.py` | Clingo wrapper |
-| Rules | `rules/*.lp` | ASP rule files |
-| Generator | `facts_generator.py` | Data → ASP facts |
+| Interfaces | `interfaces.py` | Solver contracts (`StageASolver`, `StageBSolver`) |
+| Pipeline | `pipeline.py` | Goal 1 orchestrator (`run_goal1_pipeline()`) |
+| Stage A | `stage_a.py` | Combo facts generator + mock solver |
+| Stage B | `stage_b.py` | Player candidate query + mock solver |
+
+**ASP Rules** (in `g1a_abstraction/`):
+
+| File | Purpose |
+|------|---------|
+| `fwd_rules.lp` | Forward line optimization rules |
+| `def_rules.lp` | Defense pair optimization rules |
+| `rules.lp` | Shared rules |
+| `target_optimise.lp` | Optimization targets |
+| `target_threshold_lookup.lp` | Threshold lookups |
 
 ### 5. Data Layer
 
-**Location**: `data/`
+**Location**: `backend/data/`
 
 **Responsibilities**:
 - Store game data in SQLite database
@@ -132,7 +144,7 @@ The system uses a layered architecture with clear separation of concerns:
 - Line combination definitions
 - Goal 1 pipeline results
 
-**Database**: `nhl26.db` - Created via `python scripts/csv_to_sqlite.py`
+**Database**: `nhl26.db` - Created via `python backend/scripts/csv_to_sqlite.py`
 
 **Tables**:
 - `forwards`, `defense`, `goalies` - Player cards
@@ -175,7 +187,7 @@ Client                API                Core              Data
   │    JSON response   │                   │                 │
 ```
 
-### 2. Optimization Flow
+### 2. Optimization Flow (Interactive - Goal 2)
 
 ```
 Client              API              Core              ASP              Clingo
@@ -199,6 +211,37 @@ Client              API              Core              ASP              Clingo
   │                  │<──────────────────────────────────│                  │
   │<─────────────────│                 │                 │                  │
   │  JSON solutions  │                 │                 │                  │
+```
+
+### 3. Goal 1 Pipeline Flow (Batch)
+
+```
+Pipeline          Stage A Gen      Stage A Solver    Stage B Gen      Stage B Solver    Storage
+   │                   │                 │                │                 │              │
+   │ generate()        │                 │                │                 │              │
+   │──────────────────>│                 │                │                 │              │
+   │  combo_facts      │                 │                │                 │              │
+   │<──────────────────│                 │                │                 │              │
+   │                   │                 │                │                 │              │
+   │ solve(input)      │                 │                │                 │              │
+   │────────────────────────────────────>│                │                 │              │
+   │  StageAOutput     │                 │                │                 │              │
+   │<────────────────────────────────────│                │                 │              │
+   │                   │                 │                │                 │              │
+   │ For each Stage A solution:          │                │                 │              │
+   │ generate(solution)│                 │                │                 │              │
+   │─────────────────────────────────────────────────────>│                 │              │
+   │  players + combo_facts              │                │                 │              │
+   │<─────────────────────────────────────────────────────│                 │              │
+   │                   │                 │                │                 │              │
+   │ solve(input)      │                 │                │                 │              │
+   │───────────────────────────────────────────────────────────────────────>│              │
+   │  StageBOutput (concrete lines)      │                │                 │              │
+   │<───────────────────────────────────────────────────────────────────────│              │
+   │                   │                 │                │                 │              │
+   │ store_results()   │                 │                │                 │              │
+   │──────────────────────────────────────────────────────────────────────────────────────>│
+   │                   │                 │                │                 │              │
 ```
 
 ---
@@ -264,10 +307,35 @@ solver = PlaceholderSolver()  # Returns mock data
 # Later: solver = ASPSolver()  # Real implementation
 ```
 
+### 4. Goal 1 Two-Stage Pipeline
+
+**Why**: Separates abstract optimization (combo selection) from concrete enumeration (player assignment).
+
+```python
+from src.asp.pipeline import run_goal1_pipeline
+
+# Stage A: Find best combo combinations (abstract, no players)
+# Stage B: Enumerate concrete lines that satisfy those combos
+result = run_goal1_pipeline(
+    position_type="forward",
+    optimization_mode="ovr",
+    top_k=200,              # Stage A solutions
+    player_limit=100,       # Candidates per solution
+    store_results=True,     # Persist to SQLite
+)
+```
+
+**Benefits**:
+- Stage A runs fast (combos only, ~50-100 items)
+- Stage B is bounded by pre-filtered player candidates
+- Results are persisted and queryable via `/best/{pos}/{mode}`
+
 ---
 
 ## Related Documentation
 
-- [Data Models](DATA_MODELS.md) - Detailed model specifications
-- [Development Guide](DEVELOPMENT.md) - Setup and testing
+- [Goal 1 Specification](GOAL_1.md) - Two-stage pipeline design
+- [ASP Integration](backend/ASP_INTEGRATION.md) - ASP implementation guide
+- [Data Models](backend/DATA_MODELS.md) - Detailed model specifications
+- [Development Guide](backend/DEVELOPMENT.md) - Setup and testing
 
