@@ -180,7 +180,8 @@ def create_database(data_dir: Path, db_path: Path):
     # Forward combos table
     cursor.execute("""
         CREATE TABLE forward_combos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            -- Persist stable IDs from CSV (combo_id) to avoid SQLite row-id drift.
+            id INTEGER PRIMARY KEY,
             reward_amount INTEGER NOT NULL,
             reward_type TEXT NOT NULL,
             type1 TEXT NOT NULL,
@@ -195,7 +196,8 @@ def create_database(data_dir: Path, db_path: Path):
     # Defense combos table
     cursor.execute("""
         CREATE TABLE defense_combos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            -- Persist stable IDs from CSV (combo_id) to avoid SQLite row-id drift.
+            id INTEGER PRIMARY KEY,
             reward_amount INTEGER NOT NULL,
             reward_type TEXT NOT NULL,
             type1 TEXT NOT NULL,
@@ -391,24 +393,40 @@ def create_database(data_dir: Path, db_path: Path):
     # Load forward combos
     print("  - Loading fwd_line_combos.csv...")
     df = pd.read_csv(data_dir / "fwd_line_combos.csv")
+    if "combo_id" not in df.columns:
+        raise ValueError("Expected column 'combo_id' in fwd_line_combos.csv")
+    if df["combo_id"].isna().any():
+        raise ValueError("Found missing combo_id values in fwd_line_combos.csv")
+    if df["combo_id"].duplicated().any():
+        dupes = df.loc[df["combo_id"].duplicated(), "combo_id"].tolist()[:10]
+        raise ValueError(f"Found duplicate combo_id values in fwd_line_combos.csv (sample: {dupes})")
     # Convert type and key fields to uppercase
     for i in [1, 2, 3]:
         df[f'type{i}'] = df[f'type{i}'].str.upper()
         df[f'key{i}'] = df[f'key{i}'].str.upper()
-    # Select only needed columns (exclude combo_id from CSV)
-    df = df[['reward_amount', 'reward_type', 'type1', 'key1', 'type2', 'key2', 'type3', 'key3']]
+    # Persist stable IDs from CSV (combo_id) in the SQLite `id` column.
+    df = df.rename(columns={"combo_id": "id"})
+    df = df[['id', 'reward_amount', 'reward_type', 'type1', 'key1', 'type2', 'key2', 'type3', 'key3']]
     df.to_sql("forward_combos", conn, if_exists="append", index=False)
     print(f"    Loaded {len(df)} forward combos")
     
     # Load defense combos
     print("  - Loading def_line_combos.csv...")
     df = pd.read_csv(data_dir / "def_line_combos.csv")
+    if "combo_id" not in df.columns:
+        raise ValueError("Expected column 'combo_id' in def_line_combos.csv")
+    if df["combo_id"].isna().any():
+        raise ValueError("Found missing combo_id values in def_line_combos.csv")
+    if df["combo_id"].duplicated().any():
+        dupes = df.loc[df["combo_id"].duplicated(), "combo_id"].tolist()[:10]
+        raise ValueError(f"Found duplicate combo_id values in def_line_combos.csv (sample: {dupes})")
     # Convert type and key fields to uppercase
     for i in [1, 2]:
         df[f'type{i}'] = df[f'type{i}'].str.upper()
         df[f'key{i}'] = df[f'key{i}'].str.upper()
-    # Select only needed columns (exclude combo_id from CSV)
-    df = df[['reward_amount', 'reward_type', 'type1', 'key1', 'type2', 'key2']]
+    # Persist stable IDs from CSV (combo_id) in the SQLite `id` column.
+    df = df.rename(columns={"combo_id": "id"})
+    df = df[['id', 'reward_amount', 'reward_type', 'type1', 'key1', 'type2', 'key2']]
     df.to_sql("defense_combos", conn, if_exists="append", index=False)
     print(f"    Loaded {len(df)} defense combos")
     
