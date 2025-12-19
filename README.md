@@ -23,6 +23,11 @@ Finding optimal NHL 26 HUT line combinations using Answer Set Programming (ASP) 
 
 ---
 
+## ✅ Current Status (for demo work)
+
+- Goal 1 Stage B “grounding/enumeration” is being prepared for merge into `dev` (see `docs/GOAL_1.md` for the pipeline description).
+- If you are integrating backend/frontend now: align first on the expected input facts and outputs described in `docs/ASP_INTEGRATION.md`.
+
 ## 🎯 Project Goal
 
 This project focuses on **finding the best NHL 26 HUT line combinations** under user constraints, using **Answer Set Programming (ASP) with Clingo**.  
