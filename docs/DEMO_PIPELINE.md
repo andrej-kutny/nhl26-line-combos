@@ -11,7 +11,6 @@ backend/frontend without requiring solver execution in the request path.
 From repo root:
 
 ```bash
-cd "/Users/sandstrom/NHL 26 Line Combos Optimizer/nhl26-line-combos"
 venv/bin/python scripts/demo_goal1_stageb.py
 ```
 
