@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import players, combos, optimize, stats, best
+from .routes import players, combos, optimize, stats, best, demo
 from ..core.data import get_data_loader
 
 
@@ -114,6 +114,7 @@ app.include_router(combos.router, prefix="/combos", tags=["Line Combinations"])
 app.include_router(optimize.router, prefix="/optimize", tags=["Optimization"])
 app.include_router(stats.router, prefix="/stats", tags=["Statistics"])
 app.include_router(best.router, prefix="/best", tags=["Best Lines (Goal 1)"])
+app.include_router(demo.router, prefix="/demo", tags=["Demo"])
 
 
 # =============================================================================
@@ -155,4 +156,3 @@ async def health_check():
         return {"status": "healthy", "data": "loaded"}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
-
