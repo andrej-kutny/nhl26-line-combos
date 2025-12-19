@@ -38,6 +38,12 @@ from ...core.models import (
     RewardType,
 )
 
+# Optional (non-ASP) demo solver for Goal 2, used to unblock interactive demo work.
+try:
+    from ...asp.goal2_bruteforce import Goal2BruteForceSolver
+except Exception:  # pragma: no cover
+    Goal2BruteForceSolver = None  # type: ignore
+
 # ASP Solver import - to be implemented by ASP team
 # from ...asp.solver import ASPSolver
 
@@ -396,7 +402,10 @@ class PlaceholderSolver(ASPSolverInterface):
 
 # Use placeholder for now - replace with real solver when ASP team implements it
 # solver = ASPSolver()  # Real implementation
-solver = PlaceholderSolver()  # Placeholder
+if Goal2BruteForceSolver is not None:
+    solver = Goal2BruteForceSolver()
+else:
+    solver = PlaceholderSolver()  # Placeholder
 
 
 # =============================================================================
@@ -608,4 +617,3 @@ async def get_solver_status():
             else "Clingo ASP solver active"
         ),
     }
-
