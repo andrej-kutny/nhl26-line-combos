@@ -8,6 +8,9 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 - [Quick Start Guide](../README.md#-quick-start) - Setup and run the project
 - [Project Overview](../README.md#-project-goal) - What this project does
 
+### Demo
+- [Demo Guide](DEMO.md) - Run API + demo endpoints
+
 ### Architecture & Design
 - [System Architecture](ARCHITECTURE.md) - How the system is structured
 - [Data Models](DATA_MODELS.md) - Player, combo, and API models
@@ -23,6 +26,7 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 
 ### Development
 - [Development Guide](DEVELOPMENT.md) - Setup, testing, contributing
+- [Workflow](WORKFLOW.md) - Branching and demo checks
 
 ---
 
@@ -81,4 +85,3 @@ nhl26-line-combos/
 | Swagger Docs | http://localhost:8000/docs |
 | Health Check | http://localhost:8000/health |
 | GitHub | https://github.com/andrej-kutny/nhl26-line-combos |
-
