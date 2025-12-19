@@ -1,16 +1,40 @@
-# Nhl26Frontend
+# NHL 26 Frontend (Angular)
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.0.4.
 
+## Prerequisites
+
+- Node.js 22+ recommended (Angular CLI may warn on unsupported Node versions).
+
 ## Development server
 
-To start a local development server, run:
+Install deps:
 
 ```bash
-ng serve
+npm install
+```
+
+Start a local development server:
+
+```bash
+npm start
 ```
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+
+## Backend API
+
+The UI expects the FastAPI backend to run at `http://127.0.0.1:8000` by default (editable in the UI header).
+
+Start backend from repo root:
+
+```bash
+venv/bin/python -m uvicorn src.api.main:app --reload --port 8000
+```
+
+Recommended demo flow:
+- Default mode is **Demo** (reads `/demo/goal1-stageb` output)
+- Switch to **Live** to call `/optimize/forward-line` and `/optimize/defense-pair`
 
 ## Code scaffolding
 
@@ -31,7 +55,7 @@ ng generate --help
 To build the project run:
 
 ```bash
-ng build
+npm run build
 ```
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
