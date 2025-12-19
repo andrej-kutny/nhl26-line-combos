@@ -608,11 +608,18 @@ async def get_solver_status():
     Returns information about the solver implementation status.
     Useful for frontend to know which features are available.
     """
-    # Check if real solver is implemented
+    solver_class = solver.__class__.__name__
     is_placeholder = isinstance(solver, PlaceholderSolver)
+    is_goal2_bruteforce = solver_class == "Goal2BruteForceSolver"
     
     return {
-        "solver_type": "placeholder" if is_placeholder else "clingo",
+        "solver_type": (
+            "placeholder"
+            if is_placeholder
+            else "goal2_bruteforce"
+            if is_goal2_bruteforce
+            else "clingo"
+        ),
         "features": {
             "forward_line": True,
             "defense_pair": True,
@@ -622,6 +629,8 @@ async def get_solver_status():
         "message": (
             "Using placeholder solver. ASP team: implement src/asp/solver.py"
             if is_placeholder
+            else "Using brute-force demo solver (Goal 2)."
+            if is_goal2_bruteforce
             else "Clingo ASP solver active"
         ),
     }

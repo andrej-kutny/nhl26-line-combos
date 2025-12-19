@@ -130,8 +130,93 @@ class Goal2BruteForceSolver:
         raise NotImplementedError("Full-team optimization is not implemented in the brute-force demo solver.")
 
     def validate_line(self, player_ids: list[int], position_type: str) -> dict:
-        # Reuse the existing logic from the optimize routes placeholder (kept there for now).
-        raise NotImplementedError("Use the /optimize/validate endpoint placeholder for now.")
+        position_type = position_type.lower().strip()
+        if position_type == "forward":
+            candidates = self.loader.get_forwards()
+            combos = self.loader.get_forward_combos()
+            expected_count = 3
+        elif position_type == "defense":
+            candidates = self.loader.get_defense()
+            combos = self.loader.get_defense_combos()
+            expected_count = 2
+        else:
+            return {"valid": False, "error": "position_type must be 'forward' or 'defense'"}
+
+        if len(player_ids) != expected_count:
+            return {"valid": False, "error": f"Expected {expected_count} players, got {len(player_ids)}"}
+
+        # Allow lookup by either card id or player_id; prefer best overall card.
+        player_map: dict[str, object] = {}
+        for p in candidates:
+            keys = [str(getattr(p, "id"))]
+            pid = getattr(p, "player_id", None)
+            if pid is not None:
+                keys.append(str(pid))
+            for key in keys:
+                existing = player_map.get(key)
+                if existing is None or int(getattr(p, "overall", 0)) > int(getattr(existing, "overall", 0)):
+                    player_map[key] = p
+
+        selected: list[object] = []
+        for pid in player_ids:
+            key = str(pid)
+            if key not in player_map:
+                return {"valid": False, "error": f"Player ID not found: {pid}"}
+            selected.append(player_map[key])
+
+        active: list[dict] = []
+        ovr_bonus = 0
+        sal_bonus = 0
+        ap_bonus = 0
+        for combo in combos:
+            if not combo_activates(selected, combo):
+                continue
+            active.append(
+                {
+                    "id": int(combo.id),
+                    "reward_type": combo.reward_type.value,
+                    "reward_amount": int(combo.reward_amount),
+                    "description": _combo_description(combo.get_conditions()),
+                }
+            )
+            if combo.reward_type == RewardType.OVR:
+                ovr_bonus += int(combo.reward_amount)
+            elif combo.reward_type == RewardType.SAL:
+                sal_bonus += int(combo.reward_amount)
+            elif combo.reward_type == RewardType.AP:
+                ap_bonus += int(combo.reward_amount)
+
+        total_ovr = sum(int(getattr(p, "overall", 0)) for p in selected)
+        base_salary = sum(float(getattr(p, "salary", 0.0)) for p in selected)
+        base_ap = 0
+
+        return {
+            "valid": True,
+            "players": [
+                {
+                    "id": int(getattr(p, "id")),
+                    "player_id": int(getattr(p, "player_id", getattr(p, "id"))),
+                    "name": f"{getattr(p, 'first_name', '')} {getattr(p, 'last_name', '')}".strip(),
+                    "overall": int(getattr(p, "overall", 0)),
+                    "team": str(getattr(p, "team", "")),
+                    "nationality": str(getattr(p, "nationality", "")),
+                    "event": str(getattr(p, "event", "")),
+                    "salary": float(getattr(p, "salary", 0.0)),
+                    "position": str(getattr(p, "position", "")),
+                }
+                for p in selected
+            ],
+            "total_base_ovr": total_ovr,
+            "ovr_bonus": ovr_bonus,
+            "effective_ovr": total_ovr + ovr_bonus,
+            "base_salary": base_salary,
+            "salary_bonus": sal_bonus,
+            "salary_eff": base_salary - sal_bonus,
+            "base_ap": base_ap,
+            "ap_bonus": ap_bonus,
+            "ap_eff": base_ap - ap_bonus,
+            "active_combos": active,
+        }
 
 
 def _dedupe_best_card_per_player(players: Iterable) -> list:
