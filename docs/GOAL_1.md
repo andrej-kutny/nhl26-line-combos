@@ -169,7 +169,7 @@ Task naming: `${'A' | 'B' | 'F'}G1 ${subject}`
     - tables for player cards (forwards/defense/goalies) and for combo templates
     - ingestion job: CSV → SQLite (idempotent)
   - **Acceptance**:
-    - a fresh DB can be built from `data/*.csv`
+    - a fresh DB can be built from `backend/data/*.csv`
     - combo templates are queryable by line type and reward type
 
 - **BG1 Fetch SQLite data and send them in correct format to ASP (Stage A input builder)**
