@@ -121,6 +121,28 @@ Stage B output should include:
 - all results
 - selected players per line
 
+### Stage B output contract (JSON)
+
+The Stage B enumerator should be able to write results as a self-contained JSON artifact that can be persisted in SQLite and served via API without requiring any additional context.
+
+At minimum, the JSON file MUST follow this structure:
+
+- `schema_version` (int): Output schema version for forward compatibility.
+- `pos` (string): `"fwd"` or `"def"`.
+- `combo_ids` (array[int]): The required combo IDs passed to Stage B.
+- `constraints` (object): The constraints used for the run (same fields as `OptimizationConstraints`).
+- `count` (int): Number of returned solutions.
+- `solutions` (array[object]): List of solutions, where each solution contains:
+  - `rank` (int)
+  - `players` (array[object]): concrete card selection (must include card `id` and canonical `player_id`)
+  - `total_base_ovr`, `ovr_bonus`, `effective_ovr`
+  - `total_salary`, `total_ap`
+  - `active_combos` (array[object]): all combos activated by this line/pair, including `reward_type`, `reward_amount` and a human-readable `description`
+
+Notes:
+- IDs may differ between CSV and SQLite snapshots (e.g. SQLite row IDs vs CSV `combo_id`). For cross-snapshot comparisons, match combos by their `(type,key)` conditions, which are also exposed in `active_combos[].description`.
+- Combo activation semantics are: any single line/pair may activate `0..N` combos simultaneously, while each combo can be activated at most once globally in the team context.
+
 ---
 
 ## Storage (SQLite) — what Goal 1 persists
@@ -227,5 +249,4 @@ Low priority.
 - **“Feasibility filter”**:
   - implemented implicitly by Stage B (only lines that exist in candidate players are returned)
   - Stage A is allowed to be “combo-only” and over-generate, because Stage B will ground it.
-
 

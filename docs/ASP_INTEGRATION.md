@@ -2,6 +2,9 @@
 
 This guide explains how to integrate the Clingo ASP solver with the Goal 1 pipeline.
 
+If you are unsure about the exact input/output format, start with:
+- `docs/ASP_DATA_CONTRACT.md` (backend ↔ ASP facts and expected outputs)
+
 ## Overview
 
 The Goal 1 pipeline uses a **2-stage architecture**:

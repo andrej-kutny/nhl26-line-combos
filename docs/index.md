@@ -19,7 +19,11 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 
 ### Team Integration Guides
 - [ASP Team Guide](ASP_INTEGRATION.md) - Clingo solver implementation
+- [ASP Data Contract](ASP_DATA_CONTRACT.md) - Stable backend ↔ ASP facts/outputs
 - [Frontend Team Guide](FRONTEND_INTEGRATION.md) - Connecting UI to API
+
+### Demo
+- [Demo Pipeline](DEMO_PIPELINE.md) - “Golden run” commands and artifacts
 
 ### Development
 - [Development Guide](DEVELOPMENT.md) - Setup, testing, contributing
@@ -81,4 +85,3 @@ nhl26-line-combos/
 | Swagger Docs | http://localhost:8000/docs |
 | Health Check | http://localhost:8000/health |
 | GitHub | https://github.com/andrej-kutny/nhl26-line-combos |
-
