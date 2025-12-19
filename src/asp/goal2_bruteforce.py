@@ -54,6 +54,7 @@ class Goal2BruteForceSolver:
     def __init__(self, *, data_dir: str = "data/") -> None:
         self.loader = get_data_loader(data_dir)
         self.last_candidates_evaluated = 0
+        self.last_combinations_evaluated = 0
 
     def optimize_forward_line(
         self,
@@ -73,9 +74,6 @@ class Goal2BruteForceSolver:
             excluded_ids=constraints.excluded_player_ids,
         )
 
-        if constraints.require_center:
-            forwards = [p for p in forwards if str(getattr(p, "position", "")).upper() == "C"]
-
         forwards = _dedupe_best_card_per_player(forwards)
         forwards = _cap_candidates(forwards, target=target, limit=60)
 
@@ -88,6 +86,7 @@ class Goal2BruteForceSolver:
             k=num_solutions,
         )
         self.last_candidates_evaluated = len(forwards)
+        self.last_combinations_evaluated = _n_choose_k(len(forwards), 3)
         return [s.solution for s in scored]
 
     def optimize_defense_pair(
@@ -119,6 +118,7 @@ class Goal2BruteForceSolver:
             k=num_solutions,
         )
         self.last_candidates_evaluated = len(defense)
+        self.last_combinations_evaluated = _n_choose_k(len(defense), 2)
         return [s.solution for s in scored]
 
     def optimize_full_team(
@@ -152,6 +152,20 @@ def _cap_candidates(players: list, *, target: OptimizationTarget, limit: int) ->
     else:
         players.sort(key=lambda p: (-int(getattr(p, "overall", 0)), float(getattr(p, "salary", 0.0))))
     return players[:limit]
+
+def _n_choose_k(n: int, k: int) -> int:
+    if k < 0 or n < 0 or k > n:
+        return 0
+    if k == 0:
+        return 1
+    if k == 1:
+        return n
+    if k == 2:
+        return (n * (n - 1)) // 2
+    if k == 3:
+        return (n * (n - 1) * (n - 2)) // 6
+    # Not needed for this module.
+    raise ValueError("Unsupported k")
 
 
 def _score_key_for_target(
@@ -188,6 +202,10 @@ def _score_lines(
         pids = [int(getattr(p, "player_id", getattr(p, "id"))) for p in combo_players]
         if len(set(pids)) != len(pids):
             continue
+
+        if position == Position.FORWARD and constraints.require_center:
+            if not any(str(getattr(p, "position", "")).upper() == "C" for p in combo_players):
+                continue
 
         active: list[ActiveCombo] = []
         ovr_bonus = 0
@@ -269,4 +287,3 @@ def _score_lines(
     for i, s in enumerate(out, start=1):
         s.solution.rank = i
     return out
-

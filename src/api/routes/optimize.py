@@ -458,12 +458,16 @@ async def optimize_forward_line(request: OptimizationRequest):
         
         elapsed_ms = int((time.time() - start_time) * 1000)
         
+        candidates_evaluated = getattr(solver, "last_combinations_evaluated", 0)
+        if not candidates_evaluated:
+            candidates_evaluated = getattr(solver, "last_candidates_evaluated", 0)
+
         return OptimizationResponse(
             success=True,
             message=f"Found {len(solutions)} solution(s)",
             solutions=solutions,
             computation_time_ms=elapsed_ms,
-            candidates_evaluated=0,  # ASP solver will provide this
+            candidates_evaluated=int(candidates_evaluated),
         )
     
     except NotImplementedError as e:
@@ -496,12 +500,16 @@ async def optimize_defense_pair(request: OptimizationRequest):
         
         elapsed_ms = int((time.time() - start_time) * 1000)
         
+        candidates_evaluated = getattr(solver, "last_combinations_evaluated", 0)
+        if not candidates_evaluated:
+            candidates_evaluated = getattr(solver, "last_candidates_evaluated", 0)
+
         return OptimizationResponse(
             success=True,
             message=f"Found {len(solutions)} solution(s)",
             solutions=solutions,
             computation_time_ms=elapsed_ms,
-            candidates_evaluated=0,
+            candidates_evaluated=int(candidates_evaluated),
         )
     
     except NotImplementedError as e:

@@ -59,4 +59,3 @@ def test_combo_activates_false_when_condition_missing():
     p3 = StubPlayer(team="CHI", nationality="CANADA", event="FANT")
 
     assert combo_activates([p1, p2, p3], combo) is False
-
