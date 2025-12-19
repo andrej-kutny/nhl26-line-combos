@@ -62,6 +62,9 @@ logs/
 # Local data (keep CSV files in data/)
 *.tmp
 *.bak
+out/
+data/raw/
+data/nhlhutbuilder_players_*.csv
 
 # ASP generated files
 *.lp.bak
