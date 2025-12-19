@@ -25,7 +25,7 @@ import time
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 
-from ...core.data_loader import get_data_loader
+from ...core.data import get_data_loader
 from ...core.models import (
     OptimizationRequest,
     OptimizationResponse,

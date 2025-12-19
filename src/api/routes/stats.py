@@ -6,7 +6,7 @@ These endpoints provide dataset statistics and metadata.
 
 from fastapi import APIRouter
 
-from ...core.data_loader import get_data_loader
+from ...core.data import get_data_loader
 
 router = APIRouter()
 

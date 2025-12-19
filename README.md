@@ -2,7 +2,7 @@
 
 Finding optimal NHL 26 HUT line combinations using Answer Set Programming (ASP) with Clingo.
 
-> **KRR Final Project** - Linköping University, AI Master Students
+> **KRR Final Project** - Jönköping University, AI Master Students
 
 ---
 
@@ -25,16 +25,57 @@ Finding optimal NHL 26 HUT line combinations using Answer Set Programming (ASP) 
 
 ## 🎯 Project Goal
 
-Maximize line combination bonuses (OVR, Salary, AP) while respecting constraints:
-- 110M salary cap
-- 26 ability points limit
-- Position requirements (e.g., at least 1 center per line)
+This project focuses on **finding the best NHL 26 HUT line combinations** under user constraints, using **Answer Set Programming (ASP) with Clingo**.  
+Line combinations: `data/fwd_line_combos.csv`, `data/def_line_combos.csv`  
+Player cards: `data/fwd_filtered.csv`, `data/def_filtered.csv`, `data/g_filtered.csv`  
+
+### Goal 1 — Rank best line combination candidates (data-driven)
+
+Triggered when **new players** are added or **new line combinations** are added.
+
+- **Outputs** (example target rankings):
+  - **Best OVR gain**
+  - **Best SAL gain**
+  - **Best AP gain**
+  - **Best combined OVR+SAL**
+    - Forward lines: `ovr_weight = 3`, `sal_weight = 1`
+    - Defense/goalie pairs: `ovr_weight = 2`, `sal_weight = 1`
+  - **Best combined OVR+SAL+AP**
+    - ovr and sal weight as above, `ap_weight = 1`
+- **Feasibility filter**:
+  - After ASP suggests high-value combo candidates, filter them down to only combos that are **actually fulfillable** by the currently available player cards (i.e., each combo condition has matching candidate cards).
+
+For the detailed Goal 1 pipeline (two-stage ASP + SQLite grounding), see [docs/GOAL_1.md](docs/GOAL_1.md).
+
+### Goal 2 — Suggest lines based on user filters (interactive)
+
+Create line suggestions based on user constraints, including:
+
+- **Already-used players** (exclude them from results)
+- **Per-slot constraints** (planned extension):
+  - Fixed card (specific card `id`)
+  - Fixed player (by `player_id`, wildcard card selection)
+  - Min/max overall (and potentially other attributes)
+- **Team constraints**:
+  - Remaining salary cap
+  - Already-used line combinations
+
+The API should:
+- Pre-filter players and line combinations before sending them to ASP
+- Support “must-include” constraints (e.g., require a specific player/card exactly once)
+
+### Goal 3 — Find best full-team lineups (data-driven)
+
+Triggered when **new players** are added or **new line combinations** are added.
+
+- Use results from Goal 1 as building blocks
+- Search for the best full lineup (team line combinations) subject to global constraints (salary cap, AP limit, uniqueness, etc.)
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         FRONTEND (TBD)                          │
+│                      FRONTEND (Angular v21)                     │
 └─────────────────────────────┬───────────────────────────────────┘
                               │ REST API
                               ▼
@@ -50,6 +91,8 @@ Maximize line combination bonuses (OVR, Salary, AP) while respecting constraints
 │  (data_loader)  │  │   (Clingo)      │  │                 │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
+
+**Planned storage**: move from “CSV-as-database” to **SQLite** for fast dynamic queries (search/autocomplete, filters, aggregations), seeded from the CSV files.
 
 ## 🚀 Quick Start
 
@@ -86,6 +129,7 @@ python -m uvicorn src.api.main:app --reload --port 8000
 ```
 nhl26-line-combos/
 ├── data/                      # CSV data files
+│   ├── hut.sqlite             # Database
 │   ├── fwd_filtered.csv       # Forward players
 │   ├── def_filtered.csv       # Defense players
 │   ├── g_filtered.csv         # Goalies
@@ -121,7 +165,12 @@ nhl26-line-combos/
 | GET | `/players/forwards` | List forwards with filters |
 | GET | `/players/defense` | List defense with filters |
 | GET | `/players/goalies` | List goalies with filters |
-| GET | `/players/search?q=name` | Search players by name |
+| GET | `/players/forwards/search?q=name` | Search forwards by name. Supports filters like `min_ovr`, `max_ovr`, `event`, ... |
+| GET | `/players/defense/search?q=name` | Search defense players by name. Supports filters like `min_ovr`, `max_ovr`, `event`, ... |
+| GET | `/players/goalies/search?q=name` | Search goalies by name. Supports filters like `min_ovr`, `max_ovr`, `event`, ... |
+| GET | `/players/forwards/cards/{player_id}` | All forward cards for a player |
+| GET | `/players/defense/cards/{player_id}` | All defense cards for a player |
+| GET | `/players/goalies/cards/{player_id}` | All goalie cards for a player |
 
 ### Line Combinations
 | Method | Endpoint | Description |
@@ -194,3 +243,11 @@ This project is part of the **TKRR25 Knowledge Representation and Reasoning** co
 - **FastAPI**: REST API framework
 - **Pydantic**: Data validation
 - **Pandas**: Data processing
+- **Angular v21**: Frontend framework
+- **SQLite (planned)**: Persistent storage and fast search/filter queries
+
+---
+
+## 📄 License
+
+This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.

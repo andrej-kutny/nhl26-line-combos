@@ -13,6 +13,22 @@ All models are defined using [Pydantic](https://docs.pydantic.dev/) for:
 
 ---
 
+## Important Identity Concepts (Player vs Card)
+
+The project data is **card-centric**:
+- **`id`**: unique identifier for a specific card (database auto-increment)
+- **`player_id`**: stable identifier for the real player across cards (`skater_id.csv`, `g_id.csv`)
+
+In the current API models:
+- **`PlayerBase.id`** = unique auto-increment ID (identifies a specific card)
+- **`PlayerBase.player_id`** = identifies the real player (shared across multiple cards)
+
+This distinction matters for:
+- UI pickers (choose a specific card by `id` vs a wildcard "any card for player" by `player_id`)
+- ASP solving (card-level attributes like event/team/overall depend on the specific card)
+
+---
+
 ## Enumerations
 
 ### Position
@@ -62,9 +78,13 @@ Base model for all player types.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | int | Unique player ID |
+| `id` | int | **Auto-increment ID** (unique per card) |
+| `player_id` | int | **Player ID** (shared across cards) |
 | `first_name` | str | Player's first name |
 | `last_name` | str | Player's last name |
+| `img` | str | Card image filename |
+| `position` | str | Card position (e.g., C/LW/RW/LD/RD) |
+| `salary` | float | Card salary |
 | `event` | str | Card event/release (e.g., ICON, CAP, TOTW) |
 | `overall` | int | Overall rating (1-99) |
 | `nationality` | str | Player nationality |
@@ -106,6 +126,32 @@ Goalie player with `position = "G"`.
 ### Player
 
 Generic player model that can represent any position.
+
+---
+
+## Source Data Schemas (CSV in `data/`)
+
+These CSV files are the source-of-truth inputs used by `src/core/data_loader.py`.
+
+### `fwd_filtered.csv` / `def_filtered.csv`
+
+These are **player card** datasets (one row = one card). Key columns:
+- `player_id` (int, shared across multiple cards for the same player)
+- `position` (card position like C/LW/RW/LD/RD)
+- `POS` (broad group: FWD/DEF)
+- `nationality`, `event`, `league`, `team`, `salary`, `overall`
+- Note: CSV contains `card_id` (UUID) but it's not imported to database (we use auto-increment `id` instead)
+
+### `g_filtered.csv`
+
+Goalie card dataset (one row = one card). Key columns:
+- `player_id`, `nationality`, `event`, `league`, `team`, `salary`, `overall`
+- Note: CSV contains `card_id` (UUID) but it's not imported to database (we use auto-increment `id` instead)
+
+### `skater_id.csv` / `g_id.csv`
+
+Name lookup tables:
+- `First name`, `Second name`, `player_id`
 
 ---
 

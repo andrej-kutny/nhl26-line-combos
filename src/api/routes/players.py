@@ -7,7 +7,7 @@ These endpoints provide access to player data for forwards, defense, and goalies
 from typing import Optional
 from fastapi import APIRouter, Query, HTTPException
 
-from ...core.data_loader import get_data_loader
+from ...core.data import get_data_loader
 from ...core.models import ForwardPlayer, DefensePlayer, Goalie, Position
 
 router = APIRouter()

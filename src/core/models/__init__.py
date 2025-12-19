@@ -1,52 +1,58 @@
 """
-Core module for NHL 26 Line Combos Optimizer.
+Models package for NHL 26 Line Combos Optimizer.
 
-This module provides:
-- Data models (players, combos, API, Goal 1)
-- Data access (DataLoader, Goal1ResultsStore)
+This package contains all Pydantic models organized by domain:
+- enums: All enumeration types
+- players: Player models (forwards, defense, goalies)
+- combos: Line combination models
+- api: API request/response models
+- goal1: Goal 1 pipeline result models
 
-All public classes and functions are re-exported here for convenience.
+All models are re-exported here for backward compatibility.
 """
 
-# Models - re-export from models package
-from .models import (
-    # Enums
+# Enums
+from .enums import (
     Position,
     RewardType,
     ConditionType,
     OptimizationTarget,
     OptimizationMode,
     PositionType,
-    # Player models
+)
+
+# Player models
+from .players import (
     PlayerBase,
     ForwardPlayer,
     DefensePlayer,
     Goalie,
     Player,
-    # Combo models
+)
+
+# Combo models
+from .combos import (
     ComboCondition,
     LineComboBase,
     ForwardLineCombo,
     DefenseLineCombo,
     LineCombo,
-    # API models
+)
+
+# API models
+from .api import (
     OptimizationConstraints,
     OptimizationRequest,
     ActiveCombo,
     LineSolution,
     OptimizationResponse,
-    # Goal 1 models
+)
+
+# Goal 1 models
+from .goal1 import (
     Goal1Run,
     Goal1StageAResult,
     Goal1ConcreteLine,
-)
-
-# Data access - re-export from data package
-from .data import (
-    DataLoader,
-    Goal1ResultsStore,
-    get_data_loader,
-    get_results_store,
 )
 
 __all__ = [
@@ -79,9 +85,4 @@ __all__ = [
     "Goal1Run",
     "Goal1StageAResult",
     "Goal1ConcreteLine",
-    # Data access
-    "DataLoader",
-    "Goal1ResultsStore",
-    "get_data_loader",
-    "get_results_store",
 ]

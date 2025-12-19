@@ -24,8 +24,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import players, combos, optimize, stats
-from ..core.data_loader import get_data_loader
+from .routes import players, combos, optimize, stats, best
+from ..core.data import get_data_loader
 
 
 @asynccontextmanager
@@ -113,6 +113,7 @@ app.include_router(players.router, prefix="/players", tags=["Players"])
 app.include_router(combos.router, prefix="/combos", tags=["Line Combinations"])
 app.include_router(optimize.router, prefix="/optimize", tags=["Optimization"])
 app.include_router(stats.router, prefix="/stats", tags=["Statistics"])
+app.include_router(best.router, prefix="/best", tags=["Best Lines (Goal 1)"])
 
 
 # =============================================================================
@@ -136,6 +137,7 @@ async def root():
             "combos": "/combos",
             "optimize": "/optimize",
             "stats": "/stats",
+            "best": "/best",
         }
     }
 

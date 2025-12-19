@@ -4,7 +4,7 @@ This guide covers setting up the development environment and running tests..
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - pip
 - Git
 
@@ -40,11 +40,18 @@ pip install -r requirements.txt
 pip install black mypy pytest-cov
 ```
 
-### 4. Verify Installation
+### 4. Initialize Database
+
+```bash
+# Create SQLite database from CSV files
+python scripts/csv_to_sqlite.py
+```
+
+### 5. Verify Installation
 
 ```bash
 # Test data loading
-python -c "from src.core.data_loader import get_data_loader; print(get_data_loader().get_stats())"
+python -c "from src.core import get_data_loader; print(get_data_loader().get_stats())"
 
 # Should output dataset statistics
 ```
@@ -78,8 +85,9 @@ python -m uvicorn src.api.main:app --reload --port 8000
 
 ```
 nhl26-line-combos/
-├── data/                      # CSV data files (do not modify)
-│   ├── fwd_filtered.csv
+├── data/                      # Data files
+│   ├── nhl26.db              # SQLite database (generated)
+│   ├── fwd_filtered.csv      # Source CSV files
 │   ├── def_filtered.csv
 │   ├── g_filtered.csv
 │   ├── skater_id.csv
@@ -92,13 +100,25 @@ nhl26-line-combos/
 │   ├── DATA_MODELS.md
 │   ├── ASP_INTEGRATION.md
 │   ├── FRONTEND_INTEGRATION.md
+│   ├── GOAL_1.md             # Goal 1 specification
 │   └── DEVELOPMENT.md        # This file
+├── scripts/
+│   └── csv_to_sqlite.py      # Database migration script
 ├── src/
 │   ├── __init__.py
 │   ├── core/                 # Shared code
-│   │   ├── __init__.py
-│   │   ├── models.py         # Pydantic models
-│   │   └── data_loader.py    # Data loading
+│   │   ├── __init__.py       # Re-exports all models and data classes
+│   │   ├── models/           # Pydantic models (split by domain)
+│   │   │   ├── __init__.py
+│   │   │   ├── enums.py      # Position, RewardType, OptimizationMode, etc.
+│   │   │   ├── players.py    # ForwardPlayer, DefensePlayer, Goalie, Player
+│   │   │   ├── combos.py     # ForwardLineCombo, DefenseLineCombo
+│   │   │   ├── api.py        # OptimizationRequest, LineSolution, etc.
+│   │   │   └── goal1.py      # Goal1Run, Goal1StageAResult, Goal1ConcreteLine
+│   │   └── data/             # Data access layer
+│   │       ├── __init__.py   # Singleton accessors
+│   │       ├── loader.py     # DataLoader (players, combos)
+│   │       └── goal1_store.py # Goal1ResultsStore (pipeline results)
 │   ├── api/                  # FastAPI app
 │   │   ├── __init__.py
 │   │   ├── main.py           # App entry point
@@ -109,12 +129,12 @@ nhl26-line-combos/
 │   │       ├── optimize.py
 │   │       └── stats.py
 │   └── asp/                  # ASP module (to implement)
-│       ├── __init__.py
-│       ├── solver.py         # Clingo wrapper
-│       └── rules/            # ASP rule files
+│       └── __init__.py
 ├── tests/
 │   ├── __init__.py
-│   └── test_data_loader.py
+│   ├── test_csv_to_sqlite.py
+│   ├── test_data_loader.py
+│   └── test_goal1_storage.py
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -197,7 +217,7 @@ isort src/ tests/
 ### 1. Adding a New Endpoint
 
 1. Create or modify route file in `src/api/routes/`
-2. Add Pydantic models to `src/core/models.py` if needed
+2. Add Pydantic models to the appropriate file in `src/core/models/` if needed
 3. Register route in `src/api/main.py` if new file
 4. Add tests in `tests/`
 5. Update API documentation
@@ -228,14 +248,21 @@ async def get_top_players(
 
 ### 2. Adding a New Model
 
-1. Define model in `src/core/models.py`
-2. Use in routes or data loader
-3. Document in `docs/DATA_MODELS.md`
+1. Define model in the appropriate file in `src/core/models/`:
+   - `enums.py` for enumerations
+   - `players.py` for player models
+   - `combos.py` for combo models
+   - `api.py` for API request/response models
+   - `goal1.py` for Goal 1 pipeline models
+2. Export from `src/core/models/__init__.py`
+3. Use in routes or data loader
+4. Document in `docs/DATA_MODELS.md`
 
 ### 3. Modifying Data Loading
 
-1. Update `src/core/data_loader.py`
-2. Add tests in `tests/test_data_loader.py`
+1. Update `src/core/data/loader.py` (for players/combos)
+   or `src/core/data/goal1_store.py` (for Goal 1 results)
+2. Add tests in `tests/test_data_loader.py` or `tests/test_goal1_storage.py`
 3. Clear cache if changing structure: restart server
 
 ---
@@ -289,8 +316,9 @@ from IPython import embed; embed()
 
 ```python
 # Interactive Python session
-from src.core.data_loader import get_data_loader
+from src.core import get_data_loader, get_results_store
 
+# Load players
 loader = get_data_loader()
 forwards = loader.get_forwards()
 print(f"Loaded {len(forwards)} forwards")
@@ -298,6 +326,11 @@ print(f"Loaded {len(forwards)} forwards")
 # Test filtering
 filtered = loader.filter_players(forwards, min_ovr=85, team="DET")
 print(f"Filtered to {len(filtered)} players")
+
+# Test Goal 1 storage
+store = get_results_store()
+runs = store.list_runs()
+print(f"Found {len(runs)} Goal 1 runs")
 ```
 
 ---
