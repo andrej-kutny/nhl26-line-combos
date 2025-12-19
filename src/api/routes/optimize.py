@@ -38,6 +38,12 @@ from ...core.models import (
     RewardType,
 )
 
+# Optional (non-ASP) demo solver for Goal 2, used to unblock interactive demo work.
+try:
+    from ...asp.goal2_bruteforce import Goal2BruteForceSolver
+except Exception:  # pragma: no cover
+    Goal2BruteForceSolver = None  # type: ignore
+
 # ASP Solver import - to be implemented by ASP team
 # from ...asp.solver import ASPSolver
 
@@ -396,7 +402,10 @@ class PlaceholderSolver(ASPSolverInterface):
 
 # Use placeholder for now - replace with real solver when ASP team implements it
 # solver = ASPSolver()  # Real implementation
-solver = PlaceholderSolver()  # Placeholder
+if Goal2BruteForceSolver is not None:
+    solver = Goal2BruteForceSolver()
+else:
+    solver = PlaceholderSolver()  # Placeholder
 
 
 # =============================================================================
@@ -449,12 +458,16 @@ async def optimize_forward_line(request: OptimizationRequest):
         
         elapsed_ms = int((time.time() - start_time) * 1000)
         
+        candidates_evaluated = getattr(solver, "last_combinations_evaluated", 0)
+        if not candidates_evaluated:
+            candidates_evaluated = getattr(solver, "last_candidates_evaluated", 0)
+
         return OptimizationResponse(
             success=True,
             message=f"Found {len(solutions)} solution(s)",
             solutions=solutions,
             computation_time_ms=elapsed_ms,
-            candidates_evaluated=0,  # ASP solver will provide this
+            candidates_evaluated=int(candidates_evaluated),
         )
     
     except NotImplementedError as e:
@@ -487,12 +500,16 @@ async def optimize_defense_pair(request: OptimizationRequest):
         
         elapsed_ms = int((time.time() - start_time) * 1000)
         
+        candidates_evaluated = getattr(solver, "last_combinations_evaluated", 0)
+        if not candidates_evaluated:
+            candidates_evaluated = getattr(solver, "last_candidates_evaluated", 0)
+
         return OptimizationResponse(
             success=True,
             message=f"Found {len(solutions)} solution(s)",
             solutions=solutions,
             computation_time_ms=elapsed_ms,
-            candidates_evaluated=0,
+            candidates_evaluated=int(candidates_evaluated),
         )
     
     except NotImplementedError as e:
@@ -591,11 +608,18 @@ async def get_solver_status():
     Returns information about the solver implementation status.
     Useful for frontend to know which features are available.
     """
-    # Check if real solver is implemented
+    solver_class = solver.__class__.__name__
     is_placeholder = isinstance(solver, PlaceholderSolver)
+    is_goal2_bruteforce = solver_class == "Goal2BruteForceSolver"
     
     return {
-        "solver_type": "placeholder" if is_placeholder else "clingo",
+        "solver_type": (
+            "placeholder"
+            if is_placeholder
+            else "goal2_bruteforce"
+            if is_goal2_bruteforce
+            else "clingo"
+        ),
         "features": {
             "forward_line": True,
             "defense_pair": True,
@@ -605,7 +629,8 @@ async def get_solver_status():
         "message": (
             "Using placeholder solver. ASP team: implement src/asp/solver.py"
             if is_placeholder
+            else "Using brute-force demo solver (Goal 2)."
+            if is_goal2_bruteforce
             else "Clingo ASP solver active"
         ),
     }
-
