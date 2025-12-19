@@ -53,6 +53,7 @@ def test_stageb_cant_satisfy_all_combos():
     fwd_combo(3, 10, sal, "team", "vgk", "nationality", "nor", "event", "fant").
     required_combo(1).
     required_combo(2).
+    required_combo(3).
     """
     
     program = "\n".join([facts, base_rules, stageb_rules])
