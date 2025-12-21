@@ -12,19 +12,12 @@ Finding optimal NHL 26 HUT line combinations using Answer Set Programming (ASP) 
 |----------|-------------|
 | [Documentation Hub](docs/index.md) | Central documentation index |
 | [Architecture](docs/ARCHITECTURE.md) | System design and data flow |
-| [Goal 1 Pipeline](docs/GOAL_1.md) | Two-stage ASP optimization |
 
 ### Backend Documentation
 | Document | Description |
 |----------|-------------|
 | [Data Models](docs/backend/DATA_MODELS.md) | Pydantic models and schemas |
 | [Development Guide](docs/backend/DEVELOPMENT.md) | Setup, testing, contributing |
-| [ASP Integration](docs/backend/ASP_INTEGRATION.md) | ASP/Clingo implementation guide |
-
-### Frontend Documentation
-| Guide | For |
-|-------|-----|
-| [Frontend Integration](docs/FRONTEND_INTEGRATION.md) | Frontend API integration |
 
 ---
 
@@ -49,8 +42,6 @@ Triggered when **new players** are added or **new line combinations** are added.
     - ovr and sal weight as above, `ap_weight = 1`
 - **Feasibility filter**:
   - After ASP suggests high-value combo candidates, filter them down to only combos that are **actually fulfillable** by the currently available player cards (i.e., each combo condition has matching candidate cards).
-
-For the detailed Goal 1 pipeline (two-stage ASP + SQLite grounding), see [docs/GOAL_1.md](docs/GOAL_1.md).
 
 ### Goal 2 — Suggest lines based on user filters (interactive)
 
@@ -211,7 +202,6 @@ nhl26-line-combos/
 ├── docs/                      # Documentation
 │   ├── backend/               # Backend-specific docs
 │   ├── ARCHITECTURE.md
-│   └── FRONTEND_INTEGRATION.md
 └── README.md
 ```
 
@@ -251,13 +241,6 @@ nhl26-line-combos/
 | GET | `/stats/` | Full dataset statistics |
 | GET | `/stats/teams` | Available teams |
 | GET | `/stats/nationalities` | Available nationalities |
-
-## 👥 Team Integration
-
-See the detailed integration guides in the `docs/` folder:
-
-- **ASP Team**: [docs/backend/ASP_INTEGRATION.md](docs/backend/ASP_INTEGRATION.md)
-- **Frontend Team**: [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md)
 
 ## 📊 Data Overview
 

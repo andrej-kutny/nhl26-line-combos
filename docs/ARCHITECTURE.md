@@ -91,6 +91,7 @@ The system uses a layered architecture with clear separation of concerns:
 | Models | `models/` | Pydantic data models (split by domain) |
 | DataLoader | `data/loader.py` | SQLite loading, caching, filtering |
 | Goal1Store | `data/goal1_store.py` | Goal 1 pipeline result CRUD |
+| PipelineManager | `data/pipeline_manager.py` | Auto-run pipeline when results missing (async, non-blocking) |
 
 **Model Files**:
 
@@ -106,7 +107,6 @@ The system uses a layered architecture with clear separation of concerns:
 
 **Location**: `backend/src/asp/`
 
-**Status**: Pipeline scaffolding complete, ASP solvers in progress
 
 **Responsibilities**:
 - Goal 1 pipeline orchestration (Stage A → Stage B → Storage)
@@ -121,18 +121,15 @@ The system uses a layered architecture with clear separation of concerns:
 |-----------|------|---------|
 | Interfaces | `interfaces.py` | Solver contracts (`StageASolver`, `StageBSolver`) |
 | Pipeline | `pipeline.py` | Goal 1 orchestrator (`run_goal1_pipeline()`) |
-| Stage A | `stage_a.py` | Combo facts generator + mock solver |
-| Stage B | `stage_b.py` | Player candidate query + mock solver |
+| Stage A | `stage_a.py` | Combo facts generator + `ClingoStageASolver` |
+| Stage B | `stage_b.py` | Player candidate query + `ClingoStageBSolver` |
 
-**ASP Rules** (in `g1a_abstraction/`):
+**ASP Rules**:
 
-| File | Purpose |
-|------|---------|
-| `fwd_rules.lp` | Forward line optimization rules |
-| `def_rules.lp` | Defense pair optimization rules |
-| `rules.lp` | Shared rules |
-| `target_optimise.lp` | Optimization targets |
-| `target_threshold_lookup.lp` | Threshold lookups |
+| Directory | Files | Purpose |
+|-----------|-------|---------|
+| `g1a_abstraction/` | `fwd_rules.lp`, `def_rules.lp`, `rules.lp`, `target_optimise.lp`, `target_threshold_lookup.lp` | Stage A abstract optimization rules |
+| `g1b_grounding/` | `base.lp`, `forward_line.lp`, `defense_pair.lp` | Stage B concrete line enumeration rules |
 
 ### 5. Data Layer
 
@@ -244,6 +241,36 @@ Pipeline          Stage A Gen      Stage A Solver    Stage B Gen      Stage B So
    │                   │                 │                │                 │              │
 ```
 
+### 4. Pipeline Manager Flow (Auto-Run)
+
+```
+Frontend Request    API Endpoint    Pipeline Manager    Pipeline    Database
+      │                  │                 │               │            │
+      │ GET /best/fwd/ovr│                 │               │            │
+      │─────────────────>│                 │               │            │
+      │                  │ has_results()?  │               │            │
+      │                  │────────────────>│               │            │
+      │                  │                 │ check DB      │            │
+      │                  │                 │───────────────┼───────────>│
+      │                  │                 │<───────────────┼───────────│
+      │                  │                 │               │            │
+      │                  │                 │ if missing:   │            │
+      │                  │                 │ run pipeline  │            │
+      │                  │                 │──────────────>│            │
+      │                  │                 │               │(Stage A+B) │
+      │                  │                 │               │───────────>│
+      │                  │                 │               │<───────────│
+      │                  │                 │<──────────────│            │
+      │                  │                 │               │            │
+      │                  │ return results  │               │            │
+      │<─────────────────│                 │               │            │
+```
+
+**Key Features**:
+- **Non-blocking**: Pipeline runs in thread pool via `asyncio.to_thread()`, allowing other requests to be handled concurrently
+- **Auto-run**: Automatically executes pipeline when results are missing (configurable via `auto_run` parameter)
+- **Manual trigger**: `POST /best/{pos}/{mode}/generate` endpoint for manual pipeline execution
+
 ---
 
 ## Product Goals → System Responsibilities
@@ -334,8 +361,6 @@ result = run_goal1_pipeline(
 
 ## Related Documentation
 
-- [Goal 1 Specification](GOAL_1.md) - Two-stage pipeline design
-- [ASP Integration](backend/ASP_INTEGRATION.md) - ASP implementation guide
 - [Data Models](backend/DATA_MODELS.md) - Detailed model specifications
 - [Development Guide](backend/DEVELOPMENT.md) - Setup and testing
 

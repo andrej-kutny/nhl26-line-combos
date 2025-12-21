@@ -399,6 +399,4 @@ refactor: Simplify filter logic
 ## Related Documentation
 
 - [Architecture](../ARCHITECTURE.md) - System design
-- [ASP Integration](ASP_INTEGRATION.md) - ASP team guide
-- [Frontend Integration](../FRONTEND_INTEGRATION.md) - Frontend guide
 

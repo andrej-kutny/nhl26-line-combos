@@ -12,12 +12,20 @@ from typing import Optional
 
 from .loader import DataLoader
 from .goal1_store import Goal1ResultsStore
+from .pipeline_manager import (
+    has_results,
+    ensure_results,
+    get_or_create_run,
+)
 
 __all__ = [
     "DataLoader",
     "Goal1ResultsStore",
     "get_data_loader",
     "get_results_store",
+    "has_results",
+    "ensure_results",
+    "get_or_create_run",
 ]
 
 # =============================================================================
