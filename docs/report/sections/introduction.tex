@@ -1,19 +1,71 @@
-\section{Introduction and Movivation}
+\section{Introduction and Motivation}
 
-{\it 
+\subsection{Domain Description: NHL 26 Hockey Ultimate Team}
+The domain of this project is the \textit{Hockey Ultimate Team} (HUT) mode in the video game \textit{NHL 26} developed by EA Sports. In this mode, players build their ``dream team'' by collecting player cards and assembling them into a lineup. A valid team roster consists of:
 \begin{itemize}
-  \item Briefly describe your chosen domain (e.g., healthcare, education, smart cities).
-  \item Why is this domain interesting or useful for ontology \cite{Guarino2009}/KG/ASP modeling?
-  \item Clearly define the scope of your project (what you cover, what you do not).
+    \item 4 forward lines (each with 3 players),
+    \item 3 defense lines (each with 2 players),
+    \item 1 goalie pair (active and backup).
 \end{itemize}
-}
 
-\noindent Note:
+Each player card features specific attributes including an ``Overall'' (OVR) rating (ranging from 0 to 99), a fixed salary, a position, and specific affiliations (Team, Nationality, and Event). A key mechanic introduced in NHL 26 is ``Line Combinations''. Forming lines with specific player attributes (e.g., players from the defined team, nation or event combination) unlocks bonuses such as increased player OVR, additional salary cap space, or extra Ability Points (AP).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[height=200px]{data/player_card.png}
+    \caption{Example of an NHL 26 HUT Player Card.}
+    \label{fig:player_card}
+\end{figure}
+
+The challenge lies in the strict constraints and the vast search space. Each season introduces a new salary cap and AP limit. A valid team must adhere to the following rules:
+
 \begin{itemize}
-  \item In this template, all italic text should be removed and replaced with your own text (which should not be italic); the italic text is just a placeholder letting you know what to write there.
-
-  \item If you use Figures or Tables, please make sure to give each one a caption and a figure/table number and refer to them from the main text!
-
-  \item References should be provided where applicable.
-
+    \item \textbf{Salary Cap Compliance}: The cumulative salary of all players must not exceed the team's salary cap. This cap can be increased by activating specific ``Salary Cap'' line combinations. Generally, higher-rated (high OVR) players command higher salaries.
+    \item \textbf{Ability Points Limits}: Ability Points unlock specific ``superpowers'' (previously known as X-Factors). Activating abilities for a player is optional, but the total AP used cannot exceed the seasonal limit unless increased by specific line combinations.
+    \item \textbf{Position Restrictions}: Players fall into three logical groups:
+    \begin{itemize}
+        \item Forwards (LW, C, RW)
+        \item Defensemen (LD, RD)
+        \item Goalies (G)
+    \end{itemize}
+    While goalies and defensemen share the same set of valid line combinations, forwards use a separate list. Unlike previous iterations, strict position locking within a forward line is relaxed (e.g., a line can consist of three Centers without penalty), but players cannot play out of their primary role group (e.g., a Forward cannot play Defense).
+    \item \textbf{Multiple Combination Activation}: A single line can activate multiple line combinations simultaneously.
+    \item \textbf{Unique Combination Activation}: A specific line combination definition can be activated only once per team. If one line activates it, no other line can activate the same combination.
 \end{itemize}
+
+With thousands of available cards (new ones released frequently) and complex synergy rules that change seasonally, finding the optimal configuration manually is computationally difficult.
+
+\subsection{Relevance to Answer Set Programming}
+This domain is an excellent candidate for Answer Set Programming (ASP) due to its nature as a combinatorial optimization problem with complex logical constraints.
+\begin{itemize}
+    \item \textbf{Search Space}: Selecting a subset of players from thousands of candidates to form valid lines involves a combinatorial explosion.
+    \item \textbf{Logical Constraints}: The rules governing valid lineups—such as position restrictions, uniqueness of players, and synergy requirements—are naturally expressible in logic programming.
+    \item \textbf{Optimization}: The goal is to maximize an objective function (e.g., total team OVR) while strictly respecting resource limits (Salary, AP).
+\end{itemize}
+
+\subsection{Project Scope and Goals}
+The project focuses on developing an optimization system using ASP (Clingo) to assist users in building their team. The project is divided into two primary goals:
+
+\begin{enumerate}
+    \item \textbf{Goal 1: Rank Best Line Combination Candidates (Data-Driven)}. 
+    Triggered when new players or combos are released, this batch process identifies optimal single lines (forward lines or defense pairs). It ranks them by OVR gain, Salary gain, AP gain, or a weighted combination thereof, filtering them to ensure they are fulfillable by the current card pool. This process is divided into two stages:
+    \begin{itemize}
+        \item \textbf{Stage A (Abstract / Combo-First)}: Optimizes over line combination templates (without assigning specific players yet).
+        \item \textbf{Stage B (Grounding / Player-Aware)}: Fetches a limited player pool matching Stage A’s attributes, then enumerates concrete lines that realize those combos.
+    \end{itemize}
+    
+    \item \textbf{Goal 2: Interactive Line Suggestions}.
+    This goal supports human interaction with the system. Result will be optimal lines based on user constraints, such as:
+    \begin{itemize}
+        \item Excluding already-used players.
+        \item Respecting remaining salary cap and AP budgets.
+        \item ``Must-include'' constraints for specific players.
+    \end{itemize}
+\end{enumerate}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{data/active_line_combination.png}
+    \caption{Visual representation of activated line combinations.}
+    \label{fig:line_combos}
+\end{figure}
