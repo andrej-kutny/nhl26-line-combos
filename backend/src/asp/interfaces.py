@@ -216,3 +216,103 @@ class StageBSolver(ABC):
             All concrete lines that satisfy the combos
         """
         pass
+
+
+# =============================================================================
+# GOAL 2 TYPES - DIRECT CONCRETE LINE OPTIMIZATION
+# =============================================================================
+
+@dataclass
+class Goal2Input:
+    """
+    Input for Goal 2 solver (direct concrete line optimization).
+    
+    Takes player candidates and combo definitions, directly finds optimal lines.
+    No abstract stage needed for interactive goal.
+    """
+    position_type: Literal["forward", "defense"]
+    optimization_target: Literal["ovr", "sal", "ap", "ovr_sal", "ovr_sal_ap"]
+    
+    # Candidate players
+    players: list[CandidatePlayer] = field(default_factory=list)
+    player_facts: list[str] = field(default_factory=list)
+    
+    # Combo definitions
+    combo_facts: list[str] = field(default_factory=list)
+    
+    # Filters/constraints
+    required_combo_ids: list[int] = field(default_factory=list)  # Combos to enforce
+    
+    # Parameters
+    num_solutions: int = 10  # Number of solutions to return
+    ovr_weight: float = 1.0
+    sal_weight: float = 1.0
+    ap_weight: float = 1.0
+
+
+@dataclass
+class Goal2ConcreteLineResult:
+    """
+    A concrete line result from Goal 2 optimization.
+    
+    Represents an actual team line with specific players.
+    """
+    rank: int
+    player_card_ids: list[int]  # Card IDs (3 for forward, 2 for defense)
+    player_ids: list[int]  # Real player IDs
+    activated_combo_ids: list[int]  # Which combos are activated
+    total_base_ovr: int = 0
+    total_base_salary: float = 0.0
+    total_base_ap: int = 0
+    ovr_bonus: int = 0
+    sal_bonus: int = 0
+    ap_bonus: int = 0
+    
+    @property
+    def total_ovr(self) -> int:
+        return self.total_base_ovr + self.ovr_bonus
+    
+    @property
+    def total_salary(self) -> float:
+        return self.total_base_salary - self.sal_bonus
+    
+    @property
+    def total_ap(self) -> int:
+        return self.total_base_ap - self.ap_bonus
+
+
+@dataclass
+class Goal2Output:
+    """
+    Output from Goal 2 solver.
+    
+    Contains concrete lines ranked by optimization target.
+    """
+    lines: list[Goal2ConcreteLineResult]
+    solve_time_ms: float = 0.0
+    total_models_found: int = 0
+
+
+# =============================================================================
+# GOAL 2 SOLVER INTERFACE
+# =============================================================================
+
+class Goal2Solver(ABC):
+    """
+    Abstract interface for Goal 2 solver.
+    
+    Directly optimizes over concrete lines with real players and combos.
+    """
+    
+    @abstractmethod
+    def solve(self, input_data: Goal2Input) -> Goal2Output:
+        """
+        Run Goal 2 optimization.
+        
+        Args:
+            input_data: Players, combos, and optimization parameters
+            
+        Returns:
+            Top-N concrete lines ranked by optimization target
+        """
+        pass
