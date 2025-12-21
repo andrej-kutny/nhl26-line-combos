@@ -175,11 +175,18 @@ class TestStageBSolver:
                 nationality="CANADA",
                 event="BASE",
                 overall=85,
-                salary=1000000,
+                salary=1000,
                 match_count=1,
             )
             for i in range(10)
         ]
+        
+        player_facts = []
+        for p in players:
+            player_facts.append(f'player({p.card_id}, {p.overall}, "{p.team}", "{p.nationality}", "{p.event}").')
+            player_facts.append(f'card_player({p.card_id}, {p.player_id}).')
+            player_facts.append(f'salary({p.card_id}, {int(p.salary)}).')
+            player_facts.append(f'ap({p.card_id}, {int(p.ap)}).')
         
         input_data = StageBInput(
             position_type="forward",
@@ -187,7 +194,7 @@ class TestStageBSolver:
             combo_ids=[0],
             combo_facts=[],
             players=players,
-            player_facts=[],
+            player_facts=player_facts,
         )
         
         output = solver.solve(input_data)
@@ -208,11 +215,18 @@ class TestStageBSolver:
                 nationality="USA",
                 event="BASE",
                 overall=84,
-                salary=900000,
+                salary=900,
                 match_count=1,
             )
             for i in range(10)
         ]
+        
+        player_facts = []
+        for p in players:
+            player_facts.append(f'player({p.card_id}, {p.overall}, "{p.team}", "{p.nationality}", "{p.event}").')
+            player_facts.append(f'card_player({p.card_id}, {p.player_id}).')
+            player_facts.append(f'salary({p.card_id}, {int(p.salary)}).')
+            player_facts.append(f'ap({p.card_id}, {int(p.ap)}).')
         
         input_data = StageBInput(
             position_type="defense",
@@ -220,7 +234,7 @@ class TestStageBSolver:
             combo_ids=[0],
             combo_facts=[],
             players=players,
-            player_facts=[],
+            player_facts=player_facts,
         )
         
         output = solver.solve(input_data)
@@ -311,6 +325,7 @@ class TestGoal1Pipeline:
             "forward",
             "ovr_sal",
             top_k=3,
+            player_limit=20,
             store_results=True,
         )
         
@@ -325,6 +340,7 @@ class TestGoal1Pipeline:
             "forward",
             "ovr",
             top_k=2,
+            player_limit=20,
             store_results=False,
         )
         

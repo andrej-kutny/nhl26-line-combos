@@ -34,7 +34,8 @@ class StageAInput:
     top_k: int = 200  # Number of abstract solutions to return
     
     # Weights for combined modes
-    ovr_weight: float = 1.0
+    # ovr_weight: float = 1.0 if optimization_mode == "ovr" else (2.0 if position_type == "defense" else 3.0)
+    ovr_weight: float = 1.0 # this will be overwritten
     sal_weight: float = 1.0
     ap_weight: float = 1.0
 

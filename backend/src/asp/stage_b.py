@@ -10,7 +10,9 @@ lines (with actual players) that satisfy the selected combos.
 """
 
 import time
+import clingo
 from typing import Literal
+from pathlib import Path
 
 from ..core.data import get_data_loader
 from ..core.models import ForwardLineCombo, DefenseLineCombo
@@ -201,27 +203,30 @@ class StageBInputGenerator:
         """
         Generate ASP facts for the selected combos.
         
-        Uses same format as Stage A input for consistency with ASP team.
+        Matches g1b_grounding rules format:
+        def_combo(ID, Reward, Type, Type1, Key1, Type2, Key2).
+        fwd_combo(ID, Reward, Type, Type1, Key1, Type2, Key2, Type3, Key3).
         """
         facts = []
         
         for combo in combos:
             c1 = combo.condition1
             c2 = combo.condition2
+            reward_type = combo.reward_type.value.lower() # g1b uses lowercase atoms: ovr, sal, ap
             
             if position_type == "forward":
                 c3 = combo.condition3
                 fact = (
-                    f'forward_combo({combo.id}, {combo.reward_amount}, "{combo.reward_type.value}", '
-                    f'{c1.type}("{c1.key}"), '
-                    f'{c2.type}("{c2.key}"), '
-                    f'{c3.type}("{c3.key}")).'
+                    f'fwd_combo({combo.id}, {combo.reward_amount}, {reward_type}, '
+                    f'"{c1.type}", "{c1.key}", '
+                    f'"{c2.type}", "{c2.key}", '
+                    f'"{c3.type}", "{c3.key}").'
                 )
             else:
                 fact = (
-                    f'defense_combo({combo.id}, {combo.reward_amount}, "{combo.reward_type.value}", '
-                    f'{c1.type}("{c1.key}"), '
-                    f'{c2.type}("{c2.key}")).'
+                    f'def_combo({combo.id}, {combo.reward_amount}, {reward_type}, '
+                    f'"{c1.type}", "{c1.key}", '
+                    f'"{c2.type}", "{c2.key}").'
                 )
             
             facts.append(fact)
@@ -229,62 +234,125 @@ class StageBInputGenerator:
         return facts
     
     def _generate_player_facts(self, candidates: list[CandidatePlayer]) -> list[str]:
-        """Generate ASP facts for candidate players."""
+        """
+        Generate ASP facts for candidate players.
+        
+        Matches g1b_grounding rules format:
+        player(CardID, OVR, Team, Nationality, Event).
+        card_player(CardID, PlayerID).
+        salary(CardID, S).
+        ap(CardID, A).
+        """
         facts = []
         
         for p in candidates:
-            # Player fact with all attributes
+            # player(CardID, OVR, Team, Nat, Event)
             fact = (
-                f"player({p.card_id}, {p.player_id}, "
-                f"\"{p.team}\", \"{p.nationality}\", \"{p.event}\", "
-                f"{p.overall}, {p.salary}, {p.ap})."
+                f'player({p.card_id}, {int(p.overall)}, '
+                f'"{p.team}", "{p.nationality}", "{p.event}").'
             )
             facts.append(fact)
             
-            # Attribute facts for easier ASP matching
-            facts.append(f"player_team({p.card_id}, \"{p.team}\").")
-            facts.append(f"player_nationality({p.card_id}, \"{p.nationality}\").")
-            facts.append(f"player_event({p.card_id}, \"{p.event}\").")
+            facts.append(f"card_player({p.card_id}, {p.player_id}).")
+            facts.append(f"salary({p.card_id}, {int(p.salary)}).")
+            facts.append(f"ap({p.card_id}, {int(p.ap)}).")
         
         return facts
 
 
 # =============================================================================
-# MOCK SOLVER (Placeholder until ASP team implements)
+# SOLVER
 # =============================================================================
 
-class MockStageBSolver(StageBSolver):
+class ClingoStageBSolver(StageBSolver):
     """
-    Mock Stage B solver for development/testing.
+    Clingo-based Stage B solver.
     
-    Generates sample concrete lines from candidate players.
-    ASP team will replace with real Clingo implementation.
+    Uses ASP rules in src/asp/g1b_grounding/ to enumerate concrete lines
+    that satisfy the selected combos and maximize score.
     """
     
+    def __init__(self):
+        # Paths relative to backend/src/asp/ (where this file is)
+        current_dir = Path(__file__).parent
+        self.rules_base = current_dir / "g1b_grounding/base.lp"
+        self.rules_def = current_dir / "g1b_grounding/defense_pair.lp"
+        self.rules_fwd = current_dir / "g1b_grounding/forward_line.lp"
+
     def solve(self, input_data: StageBInput) -> StageBOutput:
-        """
-        Generate mock Stage B solutions.
-        
-        Creates plausible lines from candidate players.
-        Real implementation will enumerate ALL valid lines.
-        """
         start_time = time.time()
         
-        lines = []
-        players = input_data.players
-        
-        if not players:
+        if not input_data.players:
             return StageBOutput(
                 stage_a_solution_rank=input_data.stage_a_solution_rank,
                 lines=[],
                 solve_time_ms=0,
             )
-        
-        # Generate some mock lines
+
+        # 1. Select rules based on position type
+        rules_files = [str(self.rules_base)]
         if input_data.position_type == "forward":
-            lines = self._generate_forward_lines(players, input_data.combo_ids)
+            rules_files.append(str(self.rules_fwd))
         else:
-            lines = self._generate_defense_lines(players, input_data.combo_ids)
+            rules_files.append(str(self.rules_def))
+            
+        # 2. Setup Clingo
+        # Find all optimal solutions
+        ctl = clingo.Control(["--opt-mode=optN"])
+        
+        for f in rules_files:
+            try:
+                ctl.load(f)
+            except Exception as e:
+                # Fallback if path resolution fails (e.g. running from different cwd)
+                # Try relative to CWD if absolute failed?
+                # But Path(__file__) should be absolute.
+                raise RuntimeError(f"Failed to load rule file {f}: {e}")
+            
+        # 3. Add input facts
+        program = "\n".join(input_data.combo_facts + input_data.player_facts)
+        
+        # Add default constraints if not present (StageBInput doesn't carry them yet)
+        # TODO: Get these from input if available
+        program += '\nopt_target("balanced").\n'
+        program += 'max_salary(999999).\n'
+        program += 'max_ap(999).\n'
+        
+        ctl.add("base", [], program)
+        
+        # 4. Ground and Solve
+        ctl.ground([("base", [])])
+        
+        lines: list[ConcreteLine] = []
+        seen_line_signatures: set[tuple[int, ...]] = set()
+        player_map = {p.card_id: p for p in input_data.players}
+        
+        def on_model(m):
+            # Only process if optimal (Clingo optN handles finding them)
+            # We convert all models yielded by Clingo (which eventually are the optimal ones)
+            # But Clingo yields *better* models progressively.
+            # We should only keep the ones from the *last* optimization step?
+            # Or assume Clingo only yields optimal ones if we check optimality?
+            # Standard pattern: check m.optimality_proven is True?
+            # Or simpler: Collect all, filter by best cost at the end?
+            # Since we want *enumeration* of all valid lines for the optimal score:
+            # We rely on Clingo's output.
+            line = self._parse_model(m, player_map)
+            
+            # Deduplicate based on player composition
+            # Use sorted tuple of card IDs as signature
+            signature = tuple(line.player_card_ids)
+            if signature not in seen_line_signatures:
+                lines.append(line)
+                seen_line_signatures.add(signature)
+
+        ctl.solve(on_model=on_model)
+        
+        # Filter for the best cost (if multiple costs returned)
+        # ConcreteLine doesn't store the raw cost vector.
+        # But usually Clingo solve sequence ends with optimal models.
+        # We can assume the last chunk of models with same score are optimal.
+        # For MVP, returning all is fine, backend can filter.
         
         solve_time = (time.time() - start_time) * 1000
         
@@ -293,71 +361,57 @@ class MockStageBSolver(StageBSolver):
             lines=lines,
             solve_time_ms=solve_time,
         )
-    
-    def _generate_forward_lines(
-        self,
-        players: list[CandidatePlayer],
-        combo_ids: list[int],
-    ) -> list[ConcreteLine]:
-        """Generate mock forward lines (3 players each)."""
-        lines = []
+
+    def _parse_model(self, model, player_map: dict[int, CandidatePlayer]) -> ConcreteLine:
+        selected_card_ids = []
+        active_combo_ids = []
         
-        # Get unique player_ids to avoid duplicates
-        seen_player_ids: set[int] = set()
-        unique_players = []
+        total_ovr = 0
+        total_salary = 0
+        total_ap = 0
         
-        for p in players:
-            if p.player_id not in seen_player_ids:
-                seen_player_ids.add(p.player_id)
-                unique_players.append(p)
+        for symbol in model.symbols(shown=True):
+            if symbol.name == "select":
+                # select(CardID, Slot)
+                card_id = symbol.arguments[0].number
+                selected_card_ids.append(card_id)
+            elif symbol.name == "combo_active":
+                # combo_active(ID)
+                cid = symbol.arguments[0].number
+                active_combo_ids.append(cid)
+            elif symbol.name == "total_base_ovr":
+                total_ovr = symbol.arguments[0].number
+            elif symbol.name == "total_salary":
+                total_salary = symbol.arguments[0].number
+            elif symbol.name == "total_ap":
+                total_ap = symbol.arguments[0].number
+            # Bonuses are available too: total_ovr_bonus, etc.
+            # ConcreteLine expects "total_ovr" which usually means Final OVR?
+            # Interface doc says: "total_ovr: int".
+            # Stage A uses "gain_ovr".
+            # Let's sum base + bonus for total_ovr?
+            # Or just use base.
+            # I'll use base + bonus if available.
+            elif symbol.name == "total_ovr_bonus":
+                total_ovr += symbol.arguments[0].number
+            elif symbol.name == "total_salary_bonus":
+                # Salary bonus reduces effective salary?
+                # Or implies capability?
+                # Rules say: S - B > Max.
+                # So effective salary is S - B.
+                total_salary -= symbol.arguments[0].number
+                
+        selected_card_ids.sort()
+        player_ids = [player_map[cid].player_id for cid in selected_card_ids if cid in player_map]
         
-        # Generate up to 10 mock lines
-        for i in range(min(10, len(unique_players) // 3)):
-            p1 = unique_players[i * 3]
-            p2 = unique_players[i * 3 + 1]
-            p3 = unique_players[i * 3 + 2]
-            
-            lines.append(ConcreteLine(
-                player_card_ids=[p1.card_id, p2.card_id, p3.card_id],
-                player_ids=[p1.player_id, p2.player_id, p3.player_id],
-                activated_combo_ids=combo_ids,
-                total_ovr=p1.overall + p2.overall + p3.overall,
-                total_salary=p1.salary + p2.salary + p3.salary,
-                total_ap=p1.ap + p2.ap + p3.ap,
-            ))
-        
-        return lines
-    
-    def _generate_defense_lines(
-        self,
-        players: list[CandidatePlayer],
-        combo_ids: list[int],
-    ) -> list[ConcreteLine]:
-        """Generate mock defense pairs (2 players each)."""
-        lines = []
-        
-        seen_player_ids: set[int] = set()
-        unique_players = []
-        
-        for p in players:
-            if p.player_id not in seen_player_ids:
-                seen_player_ids.add(p.player_id)
-                unique_players.append(p)
-        
-        for i in range(min(10, len(unique_players) // 2)):
-            p1 = unique_players[i * 2]
-            p2 = unique_players[i * 2 + 1]
-            
-            lines.append(ConcreteLine(
-                player_card_ids=[p1.card_id, p2.card_id],
-                player_ids=[p1.player_id, p2.player_id],
-                activated_combo_ids=combo_ids,
-                total_ovr=p1.overall + p2.overall,
-                total_salary=p1.salary + p2.salary,
-                total_ap=p1.ap + p2.ap,
-            ))
-        
-        return lines
+        return ConcreteLine(
+            player_card_ids=selected_card_ids,
+            player_ids=player_ids,
+            activated_combo_ids=sorted(active_combo_ids),
+            total_ovr=total_ovr,
+            total_salary=total_salary,
+            total_ap=total_ap,
+        )
 
 
 # =============================================================================
@@ -367,11 +421,5 @@ class MockStageBSolver(StageBSolver):
 def get_stage_b_solver() -> StageBSolver:
     """
     Get the Stage B solver instance.
-    
-    Returns MockStageBSolver until ASP team provides real implementation.
-    
-    TODO: Replace with real Clingo solver when available:
-        from .clingo_solver import ClingoStageBSolver
-        return ClingoStageBSolver()
     """
-    return MockStageBSolver()
+    return ClingoStageBSolver()

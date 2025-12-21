@@ -1,0 +1,27 @@
+defense_combo(3, 6, "SAL", team("DET"), event("GM")).
+defense_combo(13, 10, "SAL", nationality("CZECHIA"), team("VAN")).
+defense_combo(14, 6, "SAL", team("CHI"), team("CHI")).
+defense_combo(16, 10, "SAL", team("NYR"), team("NYR")).
+defense_combo(28, 6, "SAL", team("STL"), team("STL")).
+defense_combo(29, 6, "SAL", team("CGY"), team("CGY")).
+defense_combo(30, 6, "SAL", team("CAR"), team("CAR")).
+defense_combo(31, 10, "SAL", nationality("USA"), nationality("CANADA")).
+defense_combo(32, 15, "SAL", event("FANT"), event("FANT")).
+defense_combo(33, 5, "SAL", team("NSH"), team("DAL")).
+defense_combo(34, 6, "SAL", team("LAK"), team("ANA")).
+defense_combo(35, 5, "SAL", team("WSH"), team("PHI")).
+defense_combo(36, 5, "SAL", event("FANT"), team("TOR")).
+defense_combo(37, 10, "SAL", event("FANT"), team("MTL")).
+defense_combo(38, 5, "SAL", event("FANT"), team("DET")).
+defense_combo(39, 6, "SAL", event("TOTW"), event("TOTW")).
+defense_combo(40, 5, "SAL", team("NYR"), team("NYI")).
+defense_combo(41, 6, "SAL", team("TBL"), event("HH")).
+defense_combo(42, 5, "SAL", team("TBL"), team("MTL")).
+defense_combo(43, 5, "SAL", nationality("CZECHIA"), team("VAN")).
+defense_combo(44, 7, "SAL", team("STL"), event("CAP")).
+defense_combo(45, 7, "SAL", team("EVT"), event("NG")).
+defense_combo(46, 6, "SAL", team("NY"), team("BOS")).
+defense_combo(47, 6, "SAL", team("VAN"), team("TOR")).
+defense_combo(48, 6, "SAL", team("OTT"), team("MIN")).
+defense_combo(49, 6, "SAL", team("MTL"), team("MTL")).
+
