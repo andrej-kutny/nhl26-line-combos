@@ -1,6 +1,8 @@
 # Frontend Integration Guide
 
-This guide explains how to connect your frontend application to the API.
+This guide explains how to connect frontend application to the API.
+
+**Target frontend**: Angular v21
 
 ## API Base URL
 
@@ -13,7 +15,7 @@ Development: http://localhost:8000
 ### 1. Start the API Server
 
 ```bash
-cd nhl26-line-combos
+cd nhl26-line-combos/backend
 source venv/bin/activate
 uvicorn src.api.main:app --reload --port 8000
 ```
@@ -31,12 +33,12 @@ Open http://localhost:8000/docs for interactive Swagger UI.
 
 ## CORS
 
-The API allows requests from any origin during development. For production, update `src/api/main.py`:
+The API allows requests from any origin during development. For production, update `backend/src/api/main.py`:
 
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Your frontend URL
+    allow_origins=["http://localhost:5173"],  # frontend URL
     ...
 )
 ```
@@ -70,8 +72,8 @@ const forwards = await response.json();
 ### Search Players
 
 ```javascript
-// GET /players/search?q=gretzky
-const response = await fetch('http://localhost:8000/players/search?q=gretzky');
+// GET /players/search?q=gretzky&min_ovr=80&event=ICON
+const response = await fetch('http://localhost:8000/players/search?q=gretzky&min_ovr=80&event=ICON');
 const results = await response.json();
 
 // Response: Array of {player, position}
@@ -81,6 +83,22 @@ const results = await response.json();
     "position": "FWD"
   }
 ]
+```
+
+### Dropdown / Autocomplete (Recommended)
+
+Use `/players/lookup` to build dynamic dropdowns that match UX requirement:
+- card mode label: `"{First} {Last} {OVR} - {EVENT} - {Position}"`
+- player mode label: `"{First} {Last} *"`
+
+```javascript
+// Card-level options (choose by card id)
+// GET /players/lookup?q=gretzky&mode=card&position=FWD
+const cards = await fetch('http://localhost:8000/players/lookup?q=gretzky&mode=card&position=FWD').then(r => r.json());
+
+// Player-level options (choose by player_id for any card)
+// GET /players/lookup?q=gretzky&mode=player
+const players = await fetch('http://localhost:8000/players/lookup?q=gretzky&mode=player').then(r => r.json());
 ```
 
 ### Get Line Combinations
@@ -218,15 +236,32 @@ If using TypeScript, here are the main types:
 
 ```typescript
 interface Player {
-  id: number;
+  id: number;  // unique card ID (auto-increment)
+  player_id: number;  // real player ID (shared across cards)
   first_name: string;
   last_name: string;
+  img: string;
+  position?: string;
+  salary: number;
   event: string;
   overall: number;
   nationality: string;
   league: string;
   team: string;
+  weight: number;
+  height: number;
   position: 'FWD' | 'DEF' | 'G';
+}
+
+interface LookupOption {
+  value: number;  // either card id or player_id
+  value_type: 'card' | 'player';
+  player_id: number;
+  position: 'FWD' | 'DEF' | 'G';
+  overall: number;
+  event: string;
+  position?: string;
+  label: string;
 }
 
 interface ComboCondition {
@@ -287,152 +322,27 @@ interface OptimizationResponse {
 }
 ```
 
-## React Example
+## Angular example (HttpClient)
 
-```jsx
-import { useState, useEffect } from 'react';
+```typescript
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable } from '@angular/core';
 
-const API_BASE = 'http://localhost:8000';
+@Injectable({ providedIn: 'root' })
+export class NhlApi {
+  private readonly baseUrl = 'http://localhost:8000';
 
-function LineOptimizer() {
-  const [constraints, setConstraints] = useState({
-    min_ovr: 80,
-    excluded_player_ids: [],
-  });
-  const [solutions, setSolutions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  constructor(private readonly http: HttpClient) {}
 
-  const optimize = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/optimize/forward-line`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          constraints,
-          optimization_target: 'ovr',
-          num_solutions: 5,
-        }),
-      });
-      const data = await response.json();
-      setSolutions(data.solutions);
-    } catch (error) {
-      console.error('Optimization failed:', error);
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div>
-      <h1>NHL 26 Line Optimizer</h1>
-      
-      <div>
-        <label>
-          Min OVR:
-          <input
-            type="range"
-            min="70"
-            max="95"
-            value={constraints.min_ovr}
-            onChange={(e) => setConstraints({ ...constraints, min_ovr: +e.target.value })}
-          />
-          {constraints.min_ovr}
-        </label>
-      </div>
-      
-      <button onClick={optimize} disabled={loading}>
-        {loading ? 'Optimizing...' : 'Find Optimal Line'}
-      </button>
-      
-      {solutions.map((sol) => (
-        <div key={sol.rank} className="solution">
-          <h3>Solution #{sol.rank}</h3>
-          <p>Effective OVR: {sol.effective_ovr} (Base: {sol.total_base_ovr} + Bonus: {sol.ovr_bonus})</p>
-          <ul>
-            {sol.players.map((p) => (
-              <li key={p.id}>
-                {p.first_name} {p.last_name} - OVR {p.overall} ({p.team})
-              </li>
-            ))}
-          </ul>
-          {sol.active_combos.length > 0 && (
-            <div>
-              <strong>Active Combos:</strong>
-              <ul>
-                {sol.active_combos.map((c) => (
-                  <li key={c.id}>+{c.reward_amount} {c.reward_type}: {c.description}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export default LineOptimizer;
-```
-
-## Vue Example
-
-```vue
-<script setup>
-import { ref } from 'vue';
-
-const API_BASE = 'http://localhost:8000';
-
-const minOvr = ref(80);
-const solutions = ref([]);
-const loading = ref(false);
-
-async function optimize() {
-  loading.value = true;
-  try {
-    const response = await fetch(`${API_BASE}/optimize/forward-line`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        constraints: { min_ovr: minOvr.value },
-        optimization_target: 'ovr',
-        num_solutions: 5,
-      }),
-    });
-    const data = await response.json();
-    solutions.value = data.solutions;
-  } catch (error) {
-    console.error('Optimization failed:', error);
+  lookupPlayers(q: string, mode: 'card' | 'player' = 'card') {
+    const params = new HttpParams().set('q', q).set('mode', mode);
+    return this.http.get(`${this.baseUrl}/players/lookup`, { params });
   }
-  loading.value = false;
-}
-</script>
 
-<template>
-  <div>
-    <h1>NHL 26 Line Optimizer</h1>
-    
-    <div>
-      <label>
-        Min OVR: {{ minOvr }}
-        <input type="range" v-model.number="minOvr" min="70" max="95" />
-      </label>
-    </div>
-    
-    <button @click="optimize" :disabled="loading">
-      {{ loading ? 'Optimizing...' : 'Find Optimal Line' }}
-    </button>
-    
-    <div v-for="sol in solutions" :key="sol.rank" class="solution">
-      <h3>Solution #{{ sol.rank }}</h3>
-      <p>Effective OVR: {{ sol.effective_ovr }}</p>
-      <ul>
-        <li v-for="p in sol.players" :key="p.id">
-          {{ p.first_name }} {{ p.last_name }} - OVR {{ p.overall }}
-        </li>
-      </ul>
-    </div>
-  </div>
-</template>
+  optimizeForwardLine(body: unknown) {
+    return this.http.post(`${this.baseUrl}/optimize/forward-line`, body);
+  }
+}
 ```
 
 ## Error Handling
@@ -447,7 +357,7 @@ The API returns standard HTTP status codes:
 | 500 | Server error |
 | 501 | Not implemented (ASP solver pending) |
 
-Handle errors in your frontend:
+Handle errors in frontend:
 
 ```javascript
 async function apiCall(url, options = {}) {
@@ -476,6 +386,147 @@ if (status.solver_type === 'placeholder') {
 // Check which features are available
 if (status.features.full_team) {
   // Full team optimization is available
+}
+```
+
+## Best Lines Endpoints (Goal 1 Results)
+
+These endpoints expose pre-computed optimal line combinations from the Goal 1 pipeline.
+
+### List Available Runs
+
+```javascript
+// GET /best/runs?position_type=forward&optimization_mode=ovr
+const response = await fetch('http://localhost:8000/best/runs?position_type=forward');
+const { runs, total } = await response.json();
+
+// Response
+{
+  "runs": [
+    {
+      "id": 1,
+      "run_timestamp": "2025-12-18T10:30:00Z",
+      "position_type": "forward",
+      "optimization_mode": "ovr",
+      "parameters": { "k": 200 }
+    }
+  ],
+  "total": 1
+}
+```
+
+### Get Best Lines
+
+```javascript
+// GET /best/{pos}/{mode}?limit=10
+const response = await fetch('http://localhost:8000/best/forward/ovr?limit=10');
+const result = await response.json();
+
+// Response
+{
+  "success": true,
+  "run": {
+    "id": 1,
+    "run_timestamp": "2025-12-18T10:30:00Z",
+    "position_type": "forward",
+    "optimization_mode": "ovr"
+  },
+  "position_type": "forward",
+  "optimization_mode": "ovr",
+  "total_lines": 150,
+  "lines": [
+    {
+      "id": 1,
+      "players": [
+        {
+          "id": 123,
+          "player_id": 456,
+          "first_name": "Connor",
+          "last_name": "McDavid",
+          "overall": 99,
+          "team": "EDM",
+          "nationality": "CANADA",
+          "event": "TOTY",
+          "position": "FWD",
+          "salary": 5000000
+        }
+        // ... more players
+      ],
+      "activated_combo_ids": [1, 5, 12],
+      "total_ovr": 292,
+      "total_salary": 15000000,
+      "total_ap": 6,
+      "ranking_score": 298.0
+    }
+    // ... more lines
+  ]
+}
+```
+
+### Get Summary (Lighter Response)
+
+```javascript
+// GET /best/{pos}/{mode}/summary
+const response = await fetch('http://localhost:8000/best/forward/ovr/summary');
+const summary = await response.json();
+
+// Response
+{
+  "has_results": true,
+  "position_type": "forward",
+  "optimization_mode": "ovr",
+  "run": {
+    "id": 1,
+    "timestamp": "2025-12-18T10:30:00Z",
+    "parameters": { "k": 200 }
+  },
+  "total_lines": 150,
+  "top_scores": [298.0, 295.5, 294.0]
+}
+```
+
+### Best Lines TypeScript Types
+
+```typescript
+interface Goal1Run {
+  id: number;
+  run_timestamp: string;
+  position_type: 'forward' | 'defense';
+  optimization_mode: 'ovr' | 'sal' | 'ap' | 'ovr_sal' | 'ovr_sal_ap';
+  parameters: Record<string, unknown>;
+  dataset_hash?: string;
+}
+
+interface PlayerInfo {
+  id: number;
+  player_id: number;
+  first_name: string;
+  last_name: string;
+  overall: number;
+  team: string;
+  nationality: string;
+  event: string;
+  position: string;
+  salary: number;
+}
+
+interface ConcreteLineResponse {
+  id: number;
+  players: PlayerInfo[];
+  activated_combo_ids: number[];
+  total_ovr: number;
+  total_salary: number;
+  total_ap: number;
+  ranking_score: number;
+}
+
+interface BestLinesResponse {
+  success: boolean;
+  run: Goal1Run | null;
+  position_type: string;
+  optimization_mode: string;
+  total_lines: number;
+  lines: ConcreteLineResponse[];
 }
 ```
 

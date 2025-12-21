@@ -1,0 +1,55 @@
+\documentclass[11pt]{article}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+
+%configure options for the hyperref package,
+%which is used to add hyperlinks to documents
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=blue
+    }
+\urlstyle{same}
+
+%configure options for the page size
+\usepackage[
+%paperheight=16cm, paperwidth=12cm,% Set the height and width of the paper
+includehead,
+nomarginpar,% We don't want any margin paragraphs
+%textwidth=10cm,% Set \textwidth to 10cm
+%headheight=10mm,% Set \headheight to 10mm
+]{geometry}
+
+
+% Set the page style to "fancy"...
+\pagestyle{fancy}
+%... then configure it.
+\fancyhead{} % clear all header fields
+\fancyhead[L]{TKRR25 Project Report,  HT2025} % left header
+\fancyhead[C]{} % center header
+\fancyhead[R]{\thepage} % right header
+
+\title{NHL 26 Line Combinations Optimizer}
+\author{Vladimir Giustacchini, Andrej Kútny, Charles Madjeri, Adrian Sandström}
+%\date{}
+\begin{document}
+
+\maketitle  % This command generates the title
+
+\input{sections/introduction}
+\input{sections/methodology}
+
+\begin{thebibliography}{99}
+
+\bibitem{Guarino2009}
+Guarino, Nicola, Daniel Oberle, and Steffen Staab. "What is an ontology?." {\it Handbook on ontologies} (2009): 1-17.
+
+\end{thebibliography}
+
+
+
+\end{document}
