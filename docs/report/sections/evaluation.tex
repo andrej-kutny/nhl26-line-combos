@@ -1,99 +1,95 @@
 \section{Evaluation}
 
-We evaluated the system through multiple dimensions: correctness of ASP rules, pipeline functionality, data integrity, and API behavior. Due to the project's current state, evaluation focuses on infrastructure and rule validation rather than end-to-end optimization performance.
+We evaluated the system through multiple dimensions: correctness of ASP rules, pipeline functionality, data integrity, and backend integration behavior. Evaluation includes both Goal 1 (two-stage batch pipeline) and Goal 2 (direct interactive optimization), with Goal 2 currently evaluated at the Core/ASP integration level.
 
-\subsection{ASP Rules Validation}
+\subsection{ASP Rules Validation (Goal 1)}
 
 The ASP rules for Stage A (abstract optimization) are validated through a comprehensive test suite using Clingo directly. Tests verify:
 
 \begin{itemize}
-    \item \textbf{Satisfiability}: All rule combinations (forward/defense × OVR/SAL/AP) produce satisfiable models
-    \item \textbf{Optimization Correctness}: Cost minimization returns expected optimal solutions
-    \item \textbf{Weight Application}: Multiplier constants correctly scale reward types
-    \item \textbf{Threshold Lookup}: Constraint-based filtering works as expected
-    \item \textbf{No Duplicates}: Solutions contain unique combo sets (symmetry breaking effective)
+    \item \textbf{Satisfiability}: all rule combinations (forward/defense $\times$ OVR/SAL/AP) produce satisfiable models
+    \item \textbf{Optimization Correctness}: cost minimization returns expected optimal solutions
+    \item \textbf{Weight Application}: multiplier constants correctly scale reward types
+    \item \textbf{Threshold Lookup}: constraint-based filtering works as expected
+    \item \textbf{No Duplicates}: solutions contain unique combo sets (symmetry breaking effective)
 \end{itemize}
 
-\textbf{Test Results}: All ASP rule tests pass, confirming the logical correctness of the encoding. The rules handle:
-\begin{itemize}
-    \item Forward combos: 54 combinations tested
-    \item Defense combos: 56 combinations tested
-    \item Multiple reward types: OVR, SAL, AP
-    \item Weighted optimization modes
-\end{itemize}
+\textbf{Test Results}: all Stage A rule tests pass, confirming logical correctness of the encoding.
 
-\subsection{Pipeline Infrastructure Testing}
+\subsection{Pipeline Infrastructure Testing (Goal 1)}
 
-The Goal 1 pipeline infrastructure is tested end-to-end with mock solvers:
+The Goal 1 pipeline infrastructure is tested end-to-end:
 
 \begin{itemize}
-    \item \textbf{Stage A Input Generation}: Correctly converts SQLite combo data to ASP facts
-    \item \textbf{Stage B Input Generation}: Properly extracts attribute keys and queries candidate players
-    \item \textbf{Player Ranking}: Candidates sorted by \texttt{match\_count DESC, overall DESC} as specified
-    \item \textbf{Result Storage}: Stage A solutions and Stage B lines persist correctly to SQLite
-    \item \textbf{API Endpoints}: \texttt{/best/\{pos\}/\{mode\}} retrieves stored results with proper filtering
+    \item \textbf{Stage A Input Generation}: converts SQLite combo data to ASP facts
+    \item \textbf{Stage A Solving}: Clingo execution and parsing into \texttt{StageASolution}
+    \item \textbf{Stage B Input Generation}: candidate pools built from combo attribute keys
+    \item \textbf{Stage B Solving}: concrete line enumeration with constraints and deduplication
+    \item \textbf{Result Storage}: persisted results are retrievable via the API results endpoint
 \end{itemize}
 
-\textbf{Test Coverage}: Unit tests cover data loading, pipeline orchestration, storage operations, and API response formatting. Integration tests verify the full pipeline flow (without real ASP solving).
+\subsection{Goal 2 Solver and Pipeline Testing}
+
+Goal 2 is evaluated using a dedicated test suite covering unit-level and integration-level behaviors:
+
+\begin{itemize}
+    \item \textbf{Input generation}: player and combo facts are correctly formatted for the Goal 2 ASP rules
+    \item \textbf{Weight calculation}: all optimization targets (\texttt{ovr}, \texttt{sal}, \texttt{ap}, \texttt{ovr\_sal}, \texttt{ovr\_sal\_ap}) compute correct weight vectors with position-dependent defaults
+    \item \textbf{Model parsing}: forward and defense models are parsed into concrete line results with correct totals and activated combo IDs
+    \item \textbf{Pipeline execution}: \texttt{Goal2Pipeline} correctly orchestrates generator $\rightarrow$ solver and returns timed results
+    \item \textbf{Edge cases}: empty candidate lists, insufficient players, and missing combos are handled gracefully
+\end{itemize}
+
+These tests validate that Goal 2 is functional and consistent with the Goal 1 integration pattern at the backend level. Since the API/frontend endpoint wiring is not yet completed, evaluation focuses on correctness of the solver outputs and its supporting infrastructure.
 
 \subsection{Data Integrity}
 
 Data loading and storage are validated:
 
 \begin{itemize}
-    \item \textbf{CSV to SQLite Migration}: Automated script correctly ingests all player and combo data
-    \item \textbf{Data Completeness}: All expected tables populated (forwards: ~1,768 cards, defense: ~890 cards, goalies: ~305 cards)
-    \item \textbf{Referential Integrity}: Player name lookups resolve correctly via \texttt{skater\_id} and \texttt{goalie\_id} tables
+    \item \textbf{CSV to SQLite Migration}: automated ingestion populates all tables
+    \item \textbf{Data Completeness}: forwards, defense, and goalies are loaded with expected card counts
+    \item \textbf{Referential Integrity}: player name lookups resolve correctly via ID tables
     \item \textbf{Query Performance}: SQLite indexes enable fast filtering (team, nationality, event, OVR ranges)
 \end{itemize}
 
-\subsection{Stage A Performance}
+\subsection{Stage B Performance (Goal 1)}
 
 \begin{itemize}
-    \item \textbf{Solution Quality}: Stage A correctly identifies optimal combo combinations according to weighted reward maximization
-    \item \textbf{Integration Correctness}: Python-to-ASP fact generation and solution parsing are validated through integration tests
-\end{itemize}
-
-\subsection{Stage B Performance}
-
-\begin{itemize}
-    \item \textbf{Enumeration Completeness}: Stage B correctly enumerates all valid concrete lines satisfying Stage A combos
-    \item \textbf{Constraint Enforcement}: Unique player constraints, salary caps, and combo satisfaction are strictly enforced
-    \item \textbf{Optimization Quality}: Multi-level optimization correctly prioritizes combo bonuses over raw OVR
-    \item \textbf{Deduplication}: Result deduplication ensures distinct optimal line combinations are returned
-    \item \textbf{Integration Correctness}: Python-to-ASP fact generation and solution parsing validated through comprehensive integration tests
+    \item \textbf{Enumeration Completeness}: Stage B enumerates all valid lines satisfying selected combos
+    \item \textbf{Constraint Enforcement}: uniqueness, salary cap, and combo satisfaction are enforced
+    \item \textbf{Optimization Quality}: optimization prioritizes combo rewards before secondary criteria
+    \item \textbf{Deduplication}: distinct optimal line combinations are returned
 \end{itemize}
 
 \subsection{Pipeline Manager Performance}
 
-The pipeline manager's async implementation enables:
+Manual testing confirms that the pipeline manager preserves API responsiveness:
 
 \begin{itemize}
-    \item \textbf{Non-Blocking Execution}: Pipeline runs in thread pool, allowing other API requests to be handled concurrently
-    \item \textbf{Automatic Result Generation}: Frontend requests automatically trigger pipeline execution when results are missing
-    \item \textbf{Concurrent Request Handling}: Multiple API endpoints remain responsive during pipeline execution
-    \item \textbf{Error Resilience}: Pipeline failures are logged but don't crash the API, allowing graceful degradation
+    \item \textbf{Non-Blocking Execution}: Goal 1 pipeline runs in a thread pool
+    \item \textbf{Automatic Result Generation}: first access triggers computation when missing
+    \item \textbf{Concurrent Handling}: other endpoints remain responsive during pipeline execution
+    \item \textbf{Error Resilience}: failures are logged without crashing the API
 \end{itemize}
-
-\textbf{Testing}: Manual testing confirms that while a pipeline is running, other endpoints (e.g., \texttt{/players/forwards}, \texttt{/stats}) respond immediately without waiting for pipeline completion.
 
 \subsection{Limitations of Current Evaluation}
 
-Due to the project's development state, several aspects cannot be fully evaluated:
+While Goal 1 is evaluated end-to-end through API retrieval of stored results, Goal 2 has one remaining integration gap:
 
 \begin{itemize}
-    \item \textbf{Scalability}: Real-world performance with large candidate pools (100+ players) and many combos is partially tested but full-scale evaluation pending
-    \item \textcolor{red}{\textbf{Goal 2 Interactive Optimization}: Not implemented, so user constraint handling cannot be evaluated}
-    \item \textcolor{red}{\textbf{Goal 3 Full Team Optimization}: Not implemented}
+    \item \textbf{Goal 2 API/frontend integration}: Goal 2 is implemented and tested at Core/ASP level, but the interactive HTTP endpoint wiring and frontend usage are not yet fully integrated, therefore end-to-end user-flow evaluation is pending.
+    \item \textbf{Scalability}: full-scale performance profiling on large candidate pools is limited, although unit and integration tests cover typical pool sizes.
+    \item \textbf{Goal 3 Full Team Optimization}: not implemented.
 \end{itemize}
 
 \subsection{Future Evaluation Plan}
 
-Once real ASP solvers are integrated, evaluation should include:
+Once the Goal 2 endpoint and frontend integration are completed, evaluation should include:
 
 \begin{itemize}
-    \item \textbf{Solution Quality}: Compare ASP-optimized lines against manual selections or greedy heuristics
-    \item \textbf{Performance Metrics}: Measure solving time for different problem sizes (top\_k, player\_limit)
-    \item \textbf{Correctness Verification}: Validate that returned lines actually activate the expected combos
-    \item \textbf{Completeness}: Ensure Stage B enumerates all valid lines (not missing solutions due to symmetry breaking bugs)
+    \item \textbf{End-to-End Interactive Quality}: validate that user constraints and combo requirements yield expected lines in the UI
+    \item \textbf{Latency Measurements}: measure solve time across pool sizes and targets (interactive response budgets)
+    \item \textbf{Correctness Verification}: validate that returned lines activate expected combos in user-visible output
+    \item \textbf{Comparison Baselines}: compare against greedy heuristics or manual selection strategies
 \end{itemize}
