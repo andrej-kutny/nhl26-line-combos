@@ -77,3 +77,16 @@ backend/data/img/
 frontend/node_modules/
 frontend/dist/
 frontend/.env.local
+frontend/.angular/
+
+# Report build artifacts
+docs/report/*.aux
+docs/report/*.out
+docs/report/*.pdf
+docs/report/*.log
+
+# Report figures (keep local unless explicitly needed)
+docs/report/figures/*.png
+docs/report/figures/*.jpg
+docs/report/figures/*.jpeg
+docs/report/figures/*.webp

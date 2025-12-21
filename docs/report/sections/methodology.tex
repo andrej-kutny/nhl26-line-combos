@@ -1,36 +1,47 @@
 \section{Methodology}
 
-Content depends on your chosen track, but structure is similar
+This project follows Track 2 (ASP). We model the core lineup-optimization tasks in Answer Set Programming (ASP) using \textit{Clingo}, and connect the solver to a Python backend (FastAPI) and a lightweight frontend for demonstration.
 
-\subsection*{Ontology + KG parts (Tracks 1 + 3)}
+\subsection{Data Pipeline and Storage}
+We ingest player cards and line-combination definitions from CSV sources, normalize them, and persist them in an SQLite database (used as the backend's source of truth). The backend loads player and combo records from SQLite into typed Python models, which are then used to generate ASP facts and to post-process solver outputs.
 
-{\it 
+\subsection{ASP Encoding Overview}
+Across all goals, the ASP encoding follows the same pattern:
 \begin{itemize}
-  \item Describe ontology design: main classes, object/data properties, restrictions.
-  \item Include a diagram or screenshot of your class hierarchy.
-  \item Explain how you populated the KG (data source, manual vs. automated, number of individuals/triples).
+    \item Encode input data as facts describing players and combo requirements (team, nationality, event).
+    \item Select a candidate line/pair (decision variables).
+    \item Enforce hard constraints: position-group validity (FWD/DEF/G), no duplicated \texttt{player\_id}, and combo-specific requirements.
+    \item Compute derived quantities (activated combos, bonus amounts, effective totals).
+    \item Optimize using \texttt{\#maximize} (or produce a ranked list of top-$N$ answers).
 \end{itemize}
-}
 
-\subsection*{ASP part (Tracks 2 + 3)}
+\subsection{Goal 1: Batch Ranking of Line-Combination Candidates}
+Goal 1 is a system-triggered batch process that identifies and ranks high-value \textit{single lines} (forward lines or defense pairs).
 
-{\it 
+\subsubsection{Stage A (Abstract / Combo-First)}
+Stage A searches over \textit{abstract attribute templates} (e.g., ``team=CHI'' and ``event=FANT''), without committing to specific players. The solver outputs the best abstract templates under an optimization target (OVR, SAL, AP, or a weighted objective). This stage dramatically reduces the search space by focusing Stage B on only the most promising attribute combinations.
+
+\subsubsection{Stage B (Grounding / Player-Aware)}
+Stage B takes an abstract template from Stage A and grounds it by enumerating \textit{concrete} forward lines (3 players) and defense pairs (2 players) from the database that satisfy the required attributes. We enforce:
 \begin{itemize}
-  \item Describe the ASP encoding: main predicates, rules, constraints.
-  \item Explain how the ASP part interacts with the ontology/KG (if applicable).
-  \item Explain why ASP is suited for this reasoning.
-\end{itemize} 
-}
-
-\subsection*{Hybrid part (Track 1)}
-
-{\it 
-\begin{itemize}     
-  \item Include a simple architecture diagram (e.g., query $\rightarrow$ KG $\rightarrow$ fallback to LLM).
-  \item Explain how the ontology/KG is used to enhance LLM responses.
-
+    \item \textbf{Canonical uniqueness}: the same underlying \texttt{player\_id} cannot appear twice (even via different cards).
+    \item \textbf{Symmetry breaking}: permutations of the same line/pair are treated as the same solution.
+    \item \textbf{Multi-combo stacking}: a single line/pair can activate multiple combos simultaneously, while each combo definition may be used at most once at team scope.
 \end{itemize}
-}
+Solutions are exported as JSON artifacts with a versioned schema (including players, totals, and an explicit list of activated combos and rewards). This output is used both for debugging and for demo endpoints.
+
+\subsection{Goal 2: Interactive Line Suggestions}
+Goal 2 supports user-driven requests (interactive optimization). Users provide constraints such as minimum OVR, remaining salary cap, excluded players, and target objective; the solver returns top-$N$ forward lines or defense pairs that satisfy these constraints. This goal reuses the same data representation and post-processing as Goal~1, but is invoked on-demand via the API.
+
+\subsection{Backend and Frontend Integration}
+The backend exposes endpoints for optimization and for demo artifacts. It is responsible for:
+\begin{itemize}
+    \item Loading and validating data from SQLite.
+    \item Translating requests into ASP facts and solver configuration.
+    \item Running Clingo and parsing answer sets into typed responses.
+    \item Providing a stable JSON contract for clients.
+\end{itemize}
+The frontend consumes these endpoints to provide a minimal interactive demo (player browsing and optimization requests) without requiring direct solver interaction by the user.
 
 
 \input{sections/methodology/evaluation}

@@ -12,7 +12,11 @@ Each player card features specific attributes including an ``Overall'' (OVR) rat
 
 \begin{figure}[h]
     \centering
-    \includegraphics[height=200px]{data/player_card.png}
+    \IfFileExists{figures/player_card.png}{
+        \includegraphics[width=0.55\textwidth]{figures/player_card.png}
+    }{
+        \fbox{\parbox{0.55\textwidth}{\centering Missing figure: \texttt{docs/report/figures/player\_card.png}}}
+    }
     \caption{Example of an NHL 26 HUT Player Card.}
     \label{fig:player_card}
 \end{figure}
@@ -65,7 +69,11 @@ The project focuses on developing an optimization system using ASP (Clingo) to a
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.8\textwidth]{data/active_line_combination.png}
+    \IfFileExists{figures/active_line_combination.png}{
+        \includegraphics[width=0.9\textwidth]{figures/active_line_combination.png}
+    }{
+        \fbox{\parbox{0.9\textwidth}{\centering Missing figure: \texttt{docs/report/figures/active\_line\_combination.png}}}
+    }
     \caption{Visual representation of activated line combinations.}
     \label{fig:line_combos}
 \end{figure}

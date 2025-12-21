@@ -1,3 +1,29 @@
 \subsection{Evaluation}
 
-{\it Describe how you evaluated your system (according to the evaluation suggestions given in the project description), and present the evaluation results.}
+We evaluated the system on three axes: correctness, usability (end-to-end integration), and basic performance.
+
+\subsubsection{Correctness}
+We use automated tests to validate the constraints and semantics of the solver encodings and their Python integration:
+\begin{itemize}
+    \item \textbf{Constraint correctness}: no repeated \texttt{player\_id} in a line/pair, and correct position-group filtering.
+    \item \textbf{Combo semantics}: attribute matching (team/nationality/event), symmetry breaking, and multi-combo activation on the same line/pair.
+    \item \textbf{Reward arithmetic}: effective totals are consistent with activated rewards (e.g., \texttt{salary\_eff = base\_salary - total\_SAL\_bonus}).
+    \item \textbf{API contract stability}: responses can be parsed into typed models and contain all required fields.
+\end{itemize}
+
+\subsubsection{End-to-End Demo Validation}
+We verify the complete pipeline by running the backend and invoking the optimization endpoints and the demo artifact endpoints. This checks that:
+\begin{itemize}
+    \item SQLite data loads successfully.
+    \item The solver can be executed from within the backend process.
+    \item The frontend can retrieve and render results using the published JSON contract.
+\end{itemize}
+
+\subsubsection{Performance}
+We report basic solver runtimes for representative queries:
+\begin{itemize}
+    \item Goal 1 Stage A: time per abstract-template solve.
+    \item Goal 1 Stage B: time to enumerate top-$N$ grounded solutions for a fixed template.
+    \item Goal 2: response time for interactive requests under typical user constraints.
+\end{itemize}
+All measurements were taken on commodity laptop hardware and are sufficient for an interactive demo; further optimization (incremental solving, caching, and tighter candidate filtering) is left as engineering work.
