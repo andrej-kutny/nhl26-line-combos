@@ -12,22 +12,20 @@ Finding optimal NHL 26 HUT line combinations using Answer Set Programming (ASP) 
 |----------|-------------|
 | [Documentation Hub](docs/index.md) | Central documentation index |
 | [Architecture](docs/ARCHITECTURE.md) | System design and data flow |
-| [Data Models](docs/DATA_MODELS.md) | Pydantic models and schemas |
-| [Development Guide](docs/DEVELOPMENT.md) | Setup, testing, contributing |
 
-### Team Integration Guides
-| Guide | For |
-|-------|-----|
-| [ASP Integration](docs/ASP_INTEGRATION.md) | ASP/Clingo team |
-| [Frontend Integration](docs/FRONTEND_INTEGRATION.md) | Frontend team |
+### Backend Documentation
+| Document | Description |
+|----------|-------------|
+| [Data Models](docs/backend/DATA_MODELS.md) | Pydantic models and schemas |
+| [Development Guide](docs/backend/DEVELOPMENT.md) | Setup, testing, contributing |
 
 ---
 
 ## 🎯 Project Goal
 
 This project focuses on **finding the best NHL 26 HUT line combinations** under user constraints, using **Answer Set Programming (ASP) with Clingo**.  
-Line combinations: `data/fwd_line_combos.csv`, `data/def_line_combos.csv`  
-Player cards: `data/fwd_filtered.csv`, `data/def_filtered.csv`, `data/g_filtered.csv`  
+Line combinations: `backend/data/fwd_line_combos.csv`, `backend/data/def_line_combos.csv`  
+Player cards: `backend/data/fwd_filtered.csv`, `backend/data/def_filtered.csv`, `backend/data/g_filtered.csv`  
 
 ### Goal 1 — Rank best line combination candidates (data-driven)
 
@@ -44,8 +42,6 @@ Triggered when **new players** are added or **new line combinations** are added.
     - ovr and sal weight as above, `ap_weight = 1`
 - **Feasibility filter**:
   - After ASP suggests high-value combo candidates, filter them down to only combos that are **actually fulfillable** by the currently available player cards (i.e., each combo condition has matching candidate cards).
-
-For the detailed Goal 1 pipeline (two-stage ASP + SQLite grounding), see [docs/GOAL_1.md](docs/GOAL_1.md).
 
 ### Goal 2 — Suggest lines based on user filters (interactive)
 
@@ -75,9 +71,10 @@ Triggered when **new players** are added or **new line combinations** are added.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      FRONTEND (Angular v21)                     │
+│                  FRONTEND (React + Ant Design)                  │
+│              http://localhost:5173                              │
 └─────────────────────────────┬───────────────────────────────────┘
-                              │ REST API
+                              │ REST API (via Vite proxy)
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      BACKEND API (FastAPI)                      │
@@ -87,18 +84,30 @@ Triggered when **new players** are added or **new line combinations** are added.
           ┌───────────────────┼───────────────────┐
           ▼                   ▼                   ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│  Core Module    │  │   ASP Module    │  │  Data (CSV)     │
+│  Core Module    │  │   ASP Module    │  │  Data (SQLite)  │
 │  (data_loader)  │  │   (Clingo)      │  │                 │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
-**Planned storage**: move from “CSV-as-database” to **SQLite** for fast dynamic queries (search/autocomplete, filters, aggregations), seeded from the CSV files.
+**Data storage**: Uses **SQLite** database seeded from CSV files for fast dynamic queries (search/autocomplete, filters, aggregations).
 
 ## 🚀 Quick Start
 
-### 1. Setup Environment
+### Prerequisites
+
+**Backend:**
+- Python 3.11+
+
+**Frontend:**
+- Node.js 18+
+- npm 9+
+- Yarn 1.22+
+
+### 1. Setup Backend Environment
 
 ```bash
+cd backend
+
 # Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
@@ -111,6 +120,9 @@ pip install -r requirements.txt
 ### 2. Run API Server
 
 ```bash
+cd backend
+source venv/bin/activate
+
 # Development mode with auto-reload
 uvicorn src.api.main:app --reload --port 8000
 
@@ -124,36 +136,72 @@ python -m uvicorn src.api.main:app --reload --port 8000
 - **ReDoc**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/health
 
+### 4. Setup Frontend
+
+```bash
+cd frontend
+
+# Install dependencies
+yarn install
+```
+
+### 5. Run Frontend Development Server
+
+```bash
+cd frontend
+yarn dev
+# Opens at http://localhost:5173
+```
+
+### 6. Run Both (Development)
+
+```bash
+# Terminal 1 - Backend
+cd backend && source venv/bin/activate
+uvicorn src.api.main:app --reload --port 8000
+
+# Terminal 2 - Frontend
+cd frontend
+yarn dev
+```
+
 ## 📁 Project Structure
 
 ```
 nhl26-line-combos/
-├── data/                      # CSV data files
-│   ├── hut.sqlite             # Database
-│   ├── fwd_filtered.csv       # Forward players
-│   ├── def_filtered.csv       # Defense players
-│   ├── g_filtered.csv         # Goalies
-│   ├── skater_id.csv          # Skater names
-│   ├── g_id.csv               # Goalie names
-│   ├── fwd_line_combos.csv    # Forward line combos (3 players)
-│   └── def_line_combos.csv    # Defense line combos (2 players)
-├── src/
-│   ├── core/                  # Shared models and data loading
-│   │   ├── models.py          # Pydantic data models
-│   │   └── data_loader.py     # CSV loading and filtering
-│   ├── api/                   # FastAPI application
-│   │   ├── main.py            # App entry point
-│   │   └── routes/            # API endpoints
-│   │       ├── players.py     # Player data endpoints
-│   │       ├── combos.py      # Line combo endpoints
-│   │       ├── optimize.py    # Optimization endpoints
-│   │       └── stats.py       # Statistics endpoints
-│   └── asp/                   # ASP/Clingo module (to implement)
-│       ├── solver.py          # Clingo solver wrapper
-│       └── rules/             # ASP rule files
+├── backend/                   # Python backend
+│   ├── data/                  # CSV data files + SQLite database
+│   │   ├── nhl26.db           # SQLite database
+│   │   ├── fwd_filtered.csv   # Forward players
+│   │   ├── def_filtered.csv   # Defense players
+│   │   ├── g_filtered.csv     # Goalies
+│   │   ├── skater_id.csv      # Skater names
+│   │   ├── g_id.csv           # Goalie names
+│   │   ├── fwd_line_combos.csv # Forward line combos
+│   │   └── def_line_combos.csv # Defense line combos
+│   ├── src/
+│   │   ├── core/              # Models and data loading
+│   │   │   ├── models/        # Pydantic data models
+│   │   │   └── data/          # SQLite loading and filtering
+│   │   ├── api/               # FastAPI application
+│   │   │   ├── main.py        # App entry point
+│   │   │   └── routes/        # API endpoints
+│   │   └── asp/               # ASP/Clingo integration
+│   │       ├── pipeline.py    # Goal 1 pipeline
+│   │       ├── stage_a.py     # Stage A solver
+│   │       └── stage_b.py     # Stage B solver
+│   ├── scripts/               # Migration scripts
+│   ├── tests/                 # Test files
+│   └── requirements.txt       # Python dependencies
+├── frontend/                  # React frontend
+│   ├── src/
+│   │   ├── App.tsx           # Main app component
+│   │   └── main.tsx          # Entry point
+│   ├── vite.config.ts        # Vite config with API proxy
+│   └── package.json          # Node dependencies
 ├── docs/                      # Documentation
-├── tests/                     # Test files
-├── requirements.txt           # Python dependencies
+│   ├── backend/               # Backend-specific docs
+│   ├── ARCHITECTURE.md
 └── README.md
 ```
 
@@ -194,13 +242,6 @@ nhl26-line-combos/
 | GET | `/stats/teams` | Available teams |
 | GET | `/stats/nationalities` | Available nationalities |
 
-## 👥 Team Integration
-
-See the detailed integration guides in the `docs/` folder:
-
-- **ASP Team**: [docs/ASP_INTEGRATION.md](docs/ASP_INTEGRATION.md)
-- **Frontend Team**: [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md)
-
 ## 📊 Data Overview
 
 | Category | Count |
@@ -218,12 +259,15 @@ See the detailed integration guides in the `docs/` folder:
 ### Running Tests
 
 ```bash
+cd backend
+source venv/bin/activate
 pytest tests/ -v
 ```
 
 ### Code Style
 
 ```bash
+cd backend
 # Format code
 black src/
 
@@ -243,8 +287,10 @@ This project is part of the **TKRR25 Knowledge Representation and Reasoning** co
 - **FastAPI**: REST API framework
 - **Pydantic**: Data validation
 - **Pandas**: Data processing
-- **Angular v21**: Frontend framework
-- **SQLite (planned)**: Persistent storage and fast search/filter queries
+- **React 18**: Frontend framework
+- **Ant Design**: UI component library
+- **Vite**: Frontend build tool
+- **SQLite**: Persistent storage and fast search/filter queries
 
 ---
 

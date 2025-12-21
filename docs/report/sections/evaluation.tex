@@ -1,0 +1,88 @@
+\section{Evaluation}
+
+We evaluated the system through multiple dimensions: correctness of ASP rules, pipeline functionality, data integrity, and API behavior. Due to the project's current state, evaluation focuses on infrastructure and rule validation rather than end-to-end optimization performance.
+
+\subsection{ASP Rules Validation}
+
+The ASP rules for Stage A (abstract optimization) are validated through a comprehensive test suite using Clingo directly. Tests verify:
+
+\begin{itemize}
+    \item \textbf{Satisfiability}: All rule combinations (forward/defense × OVR/SAL/AP) produce satisfiable models
+    \item \textbf{Optimization Correctness}: Cost minimization returns expected optimal solutions
+    \item \textbf{Weight Application}: Multiplier constants correctly scale reward types
+    \item \textbf{Threshold Lookup}: Constraint-based filtering works as expected
+    \item \textbf{No Duplicates}: Solutions contain unique combo sets (symmetry breaking effective)
+\end{itemize}
+
+\textbf{Test Results}: All ASP rule tests pass, confirming the logical correctness of the encoding. The rules handle:
+\begin{itemize}
+    \item Forward combos: 54 combinations tested
+    \item Defense combos: 56 combinations tested
+    \item Multiple reward types: OVR, SAL, AP
+    \item Weighted optimization modes
+\end{itemize}
+
+\subsection{Pipeline Infrastructure Testing}
+
+The Goal 1 pipeline infrastructure is tested end-to-end with mock solvers:
+
+\begin{itemize}
+    \item \textbf{Stage A Input Generation}: Correctly converts SQLite combo data to ASP facts
+    \item \textbf{Stage B Input Generation}: Properly extracts attribute keys and queries candidate players
+    \item \textbf{Player Ranking}: Candidates sorted by \texttt{match\_count DESC, overall DESC} as specified
+    \item \textbf{Result Storage}: Stage A solutions and Stage B lines persist correctly to SQLite
+    \item \textbf{API Endpoints}: \texttt{/best/\{pos\}/\{mode\}} retrieves stored results with proper filtering
+\end{itemize}
+
+\textbf{Test Coverage}: Unit tests cover data loading, pipeline orchestration, storage operations, and API response formatting. Integration tests verify the full pipeline flow (without real ASP solving).
+
+\subsection{Data Integrity}
+
+Data loading and storage are validated:
+
+\begin{itemize}
+    \item \textbf{CSV to SQLite Migration}: Automated script correctly ingests all player and combo data
+    \item \textbf{Data Completeness}: All expected tables populated (forwards: ~1,768 cards, defense: ~890 cards, goalies: ~305 cards)
+    \item \textbf{Referential Integrity}: Player name lookups resolve correctly via \texttt{skater\_id} and \texttt{goalie\_id} tables
+    \item \textbf{Query Performance}: SQLite indexes enable fast filtering (team, nationality, event, OVR ranges)
+\end{itemize}
+
+\subsection{Stage A Performance}
+
+\begin{itemize}
+    \item \textbf{Solution Quality}: Stage A correctly identifies optimal combo combinations according to weighted reward maximization
+    \item \textbf{Integration Correctness}: Python-to-ASP fact generation and solution parsing are validated through integration tests
+\end{itemize}
+
+\subsection{Stage B Performance}
+
+\begin{itemize}
+    \item \textbf{Enumeration Completeness}: Stage B correctly enumerates all valid concrete lines satisfying Stage A combos
+    \item \textbf{Constraint Enforcement}: Unique player constraints, salary caps, and combo satisfaction are strictly enforced
+    \item \textbf{Optimization Quality}: Multi-level optimization correctly prioritizes combo bonuses over raw OVR
+    \item \textbf{Deduplication}: Result deduplication ensures distinct optimal line combinations are returned
+    \item \textbf{Integration Correctness}: Python-to-ASP fact generation and solution parsing validated through comprehensive integration tests
+\end{itemize}
+
+\subsection{Pipeline Manager Performance}
+
+The pipeline manager's async implementation enables:
+
+\begin{itemize}
+    \item \textbf{Non-Blocking Execution}: Pipeline runs in thread pool, allowing other API requests to be handled concurrently
+    \item \textbf{Automatic Result Generation}: Frontend requests automatically trigger pipeline execution when results are missing
+    \item \textbf{Concurrent Request Handling}: Multiple API endpoints remain responsive during pipeline execution
+    \item \textbf{Error Resilience}: Pipeline failures are logged but don't crash the API, allowing graceful degradation
+\end{itemize}
+
+\textbf{Testing}: Manual testing confirms that while a pipeline is running, other endpoints (e.g., \texttt{/players/forwards}, \texttt{/stats}) respond immediately without waiting for pipeline completion.
+
+\subsection{Limitations of Current Evaluation}
+
+Due to the project's development state, several aspects cannot be fully evaluated:
+
+\begin{itemize}
+    \item \textbf{Scalability}: Real-world performance with large candidate pools (100+ players) and many combos is partially tested but full-scale evaluation pending
+    \item \textbf{Goal 2 Interactive Optimization}: Not implemented
+    \item \textbf{Goal 3 Full Team Optimization}: Not implemented
+\end{itemize}

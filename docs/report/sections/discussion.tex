@@ -1,0 +1,24 @@
+\section{Discussion}
+
+\subsection{Strengths of the Approach}
+
+\textbf{Modular Architecture}: The separation of concerns (data layer, ASP layer, API layer) enables parallel development and testing. ASP rules can be validated independently using Clingo, while the backend provides mock implementations for integration testing.
+
+\textbf{Two-Stage Pipeline Design}: The Stage A (abstract) → Stage B (concrete) decomposition addresses scalability. Stage A operates on a small search space (50-100 combos), while Stage B is bounded by pre-filtered candidate pools (typically 100 players). This avoids the exponential explosion of enumerating all possible player combinations upfront.
+
+\textbf{Declarative Constraint Encoding}: ASP's declarative syntax naturally expresses domain constraints (uniqueness, position restrictions, combo activation). The rules are readable and maintainable compared to imperative search algorithms.
+
+\textbf{Data-Driven Optimization}: The system adapts automatically to new players and combos added to the database. No code changes are needed when the dataset updates—the pipeline regenerates ASP facts from SQLite.
+
+\textbf{Result Persistence}: Storing optimization results enables querying historical runs, comparing different optimization modes, and building a knowledge base of high-value line combinations.
+
+\subsection{Limitations and Challenges}
+
+\textbf{Non-Blocking Pipeline Execution}: The Pipeline Manager uses async execution with thread pools, allowing the API to handle other requests concurrently while the pipeline runs. This maintains API responsiveness during long-running optimizations.
+
+\textbf{Scalability Concerns}: While the two-stage design mitigates combinatorial explosion, real-world performance with thousands of player cards remains untested. Stage B enumeration may become slow if candidate pools are large or many combos must be satisfied simultaneously.
+
+\textbf{Symmetry Breaking Complexity}: The ASP rules for symmetry breaking (lexicographic ordering) are intricate and error-prone. Incorrect symmetry breaking can either miss valid solutions or generate duplicates, both of which are difficult to detect.
+
+\textbf{No Incremental Updates}: When new players or combos are added, the entire Goal 1 pipeline must be re-run. There is no mechanism for incremental updates or delta optimization.
+

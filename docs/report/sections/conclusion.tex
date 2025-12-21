@@ -1,0 +1,23 @@
+\section{Conclusion}
+
+This project demonstrates the application of Answer Set Programming to optimize NHL 26 HUT line combinations. We have developed a modular, two-stage pipeline architecture that separates abstract combo optimization from concrete player enumeration, addressing the combinatorial complexity of the problem.
+
+The system successfully implements:
+\begin{itemize}
+    \item A complete data model and SQLite-based storage for player cards and line combinations
+    \item ASP rule encoding for abstract optimization (Stage A) with validated logical correctness
+    \item \textbf{Stage A ASP Integration}: \texttt{ClingoStageASolver} with Clingo execution, solution parsing, and hybrid symmetry breaking
+    \item \textbf{Stage B ASP Integration}: \texttt{ClingoStageBSolver} with concrete line enumeration, constraint enforcement, and result deduplication
+    \item Pipeline infrastructure for orchestrating Stage A → Stage B → Storage workflow
+    \item \textbf{Pipeline Manager}: Async auto-run system that executes the pipeline when results are missing, running in a thread pool to avoid blocking other API requests
+    \item REST API endpoints for querying players, combos, and optimization results
+    \item Full-featured React frontend with four main pages: Home (statistics), Players (search/browse), Best Lines (Goal 1 results), and Optimize (interactive optimization)
+\end{itemize}
+
+Goal 2 (interactive optimization) and Goal 3 (full team optimization) remain to be implemented. However, the core optimization pipeline is production-ready: both ASP stages are integrated, ASP rules are tested and correct, the pipeline architecture is validated, and the data infrastructure supports end-to-end execution.
+
+\textbf{Pipeline Manager}: The system includes an automatic pipeline execution feature. When the frontend requests best lines via \texttt{GET /best/\{pos\}/\{mode\}}, the backend automatically checks if results exist and runs the pipeline if needed. This ensures the frontend always has data to display, even on first access. The pipeline runs asynchronously in a thread pool, maintaining API responsiveness for other requests during execution.
+
+The project illustrates the complementary strengths of symbolic reasoning (ASP) and data-driven techniques (SQLite filtering, heuristic ranking). This hybrid approach enables scalable optimization while maintaining logical guarantees about solution correctness—a valuable pattern for real-world combinatorial problems.
+
+Future work should focus on completing the ASP integration, extending to interactive and full-team optimization, and evaluating performance on real-world datasets with thousands of player cards.

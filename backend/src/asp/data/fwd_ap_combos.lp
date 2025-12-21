@@ -1,0 +1,24 @@
+forward_combo(2, 5, "AP", team("MTL"), nationality("GERMANY"), team("TOR")).
+forward_combo(14, 3, "AP", team("PHI"), team("PHI"), team("PHI")).
+forward_combo(15, 3, "AP", team("WPG"), team("WPG"), team("WPG")).
+forward_combo(16, 3, "AP", team("COL"), team("COL"), team("COL")).
+forward_combo(17, 12, "AP", team("DET"), team("DET"), team("DET")).
+forward_combo(33, 3, "AP", team("ANA"), team("ANA"), team("ANA")).
+forward_combo(34, 3, "AP", team("BOS"), team("BOS"), team("BOS")).
+forward_combo(35, 3, "AP", event("COM"), event("COM"), event("COM")).
+forward_combo(36, 3, "AP", event("CAP"), team("UTA"), team("STL")).
+forward_combo(37, 3, "AP", event("CAP"), team("TOR"), team("CGY")).
+forward_combo(38, 3, "AP", team("UTA"), event("FANT"), team("CHI")).
+forward_combo(39, 3, "AP", event("TOTW"), event("SOTM"), event("TOTW")).
+forward_combo(40, 3, "AP", event("CAP"), team("OTT"), team("CBJ")).
+forward_combo(41, 3, "AP", team("ANA"), event("SOTM"), team("LAK")).
+forward_combo(42, 3, "AP", event("GB"), team("PIT"), team("CAR")).
+forward_combo(43, 3, "AP", event("COM"), team("SJS"), nationality("CZECHIA")).
+forward_combo(44, 3, "AP", team("DET"), team("MTL"), nationality("DENMARK")).
+forward_combo(45, 3, "AP", team("TBL"), team("BUF"), event("CAP")).
+forward_combo(46, 5, "AP", nationality("USA"), event("NG"), team("PIT")).
+forward_combo(47, 6, "AP", team("NY"), team("MTL"), team("BOS")).
+forward_combo(48, 6, "AP", team("MIN"), team("SEA"), team("VAN")).
+forward_combo(49, 6, "AP", event("HH"), team("DET"), team("SEA")).
+forward_combo(53, 1, "AP", event("HUTC"), team("MTL"), event("GB")).
+
