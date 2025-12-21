@@ -2,7 +2,7 @@
  * Optimization API module
  */
 
-import { apiPost, apiGet } from './client';
+import { apiPost } from './client';
 import type { OptimizationRequest, OptimizationResponse } from './types';
 
 // Optimize forward line
@@ -43,14 +43,4 @@ export interface ValidateResponse {
 
 export function validateLine(request: ValidateRequest): Promise<ValidateResponse> {
   return apiPost<ValidateResponse>('/optimize/validate', request);
-}
-
-// Check if ASP solver is ready
-export interface SolverStatus {
-  asp_ready: boolean;
-  message: string;
-}
-
-export function getSolverStatus(): Promise<SolverStatus> {
-  return apiGet<SolverStatus>('/optimize/status');
 }

@@ -22,7 +22,7 @@ import {
 import { RocketOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useApi, useLazyApi } from '../hooks/useApi';
 import { getTeams, getNationalities, getEvents } from '../api/players';
-import { optimizeForwardLine, optimizeDefensePair, getSolverStatus } from '../api/optimize';
+import { optimizeForwardLine, optimizeDefensePair } from '../api/optimize';
 import { LineDisplay } from '../components/LineDisplay';
 import type { OptimizationRequest, OptimizationResponse } from '../api/types';
 
@@ -51,7 +51,6 @@ export function OptimizePage() {
   const { data: teams } = useApi(() => getTeams(), []);
   const { data: nationalities } = useApi(() => getNationalities(), []);
   const { data: events } = useApi(() => getEvents(), []);
-  const { data: solverStatus, loading: loadingStatus } = useApi(() => getSolverStatus(), []);
 
   // Optimization mutation
   const { loading: optimizing, error, execute: runOptimization } = useLazyApi(
@@ -92,18 +91,6 @@ export function OptimizePage() {
   return (
     <Flex vertical gap="large" style={{ width: '100%' }}>
       <Title level={2}>Optimize Lines</Title>
-
-      {/* Solver Status */}
-      {loadingStatus ? (
-        <Spin />
-      ) : solverStatus && !solverStatus.asp_ready ? (
-        <Alert
-          title="ASP Solver Not Ready"
-          description={solverStatus.message || 'The ASP solver is still being implemented. Results will use placeholder data.'}
-          type="warning"
-          showIcon
-        />
-      ) : null}
 
       <Row gutter={24}>
         {/* Form */}
