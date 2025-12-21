@@ -10,6 +10,7 @@ We use automated tests to validate the constraints and semantics of the solver e
     \item \textbf{Reward arithmetic}: effective totals are consistent with activated rewards (e.g., \texttt{salary\_eff = base\_salary - total\_SAL\_bonus}).
     \item \textbf{API contract stability}: responses can be parsed into typed models and contain all required fields.
 \end{itemize}
+On the merged backend branch, the automated suite reports \textbf{97 tests passing} (Python/ASP integration and contract checks).
 
 \subsubsection{End-to-End Demo Validation}
 We verify the complete pipeline by running the backend and invoking the optimization endpoints and the demo artifact endpoints. This checks that:
