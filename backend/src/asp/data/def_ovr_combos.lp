@@ -1,0 +1,26 @@
+defense_combo(2, 1, "OVR", team("DAL"), event("HH")).
+defense_combo(4, 1, "OVR", event("COM"), event("GM")).
+defense_combo(5, 2, "OVR", event("GM"), team("DAL")).
+defense_combo(7, 1, "OVR", event("ICON"), team("NYR")).
+defense_combo(8, 2, "OVR", team("CGY"), event("SOTM")).
+defense_combo(9, 1, "OVR", team("CGY"), team("NYR")).
+defense_combo(10, 2, "OVR", team("MIN"), event("COM")).
+defense_combo(11, 1, "OVR", team("VAN"), event("COM")).
+defense_combo(12, 1, "OVR", event("NG"), nationality("CZECHIA")).
+defense_combo(17, 1, "OVR", team("CAR"), team("PIT")).
+defense_combo(18, 1, "OVR", event("TOTW"), event("SOTM")).
+defense_combo(19, 1, "OVR", team("MIN"), team("CGY")).
+defense_combo(20, 1, "OVR", team("OTT"), team("BUF")).
+defense_combo(21, 1, "OVR", team("BOS"), event("NG")).
+defense_combo(22, 1, "OVR", team("VAN"), nationality("FINLAND")).
+defense_combo(23, 1, "OVR", event("ROOK"), event("HH")).
+defense_combo(24, 1, "OVR", team("COL"), event("ICON")).
+defense_combo(25, 1, "OVR", event("CAP"), team("SJS")).
+defense_combo(26, 1, "OVR", team("MIN"), team("VAN")).
+defense_combo(27, 1, "OVR", team("SEA"), team("MTL")).
+defense_combo(61, 1, "OVR", team("STL"), team("STL")).
+defense_combo(62, 1, "OVR", team("CGY"), team("CGY")).
+defense_combo(63, 1, "OVR", team("MTL"), team("MTL")).
+defense_combo(64, 1, "OVR", event("NG"), team("EVT")).
+defense_combo(65, 1, "OVR", team("CAR"), event("NG")).
+

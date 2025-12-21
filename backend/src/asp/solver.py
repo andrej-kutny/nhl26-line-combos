@@ -397,7 +397,7 @@ class ASPSolver:
 
     @staticmethod
     def _read_rules(filename: str) -> str:
-        path = Path(__file__).parent / "rules" / filename
+        path = Path(__file__).parent / "g1b_grounding" / filename
         return path.read_text(encoding="utf-8")
 
     @staticmethod

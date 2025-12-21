@@ -1,0 +1,24 @@
+forward_combo(3, 2, "OVR", team("BOS"), event("GM"), team("OTT")).
+forward_combo(4, 1, "OVR", team("TOR"), team("BOS"), team("MTL")).
+forward_combo(6, 1, "OVR", event("GM"), team("NYR"), nationality("USA")).
+forward_combo(7, 1, "OVR", team("OTT"), nationality("CANADA"), event("SOTM")).
+forward_combo(8, 2, "OVR", nationality("GERMANY"), event("ICON"), team("DAL")).
+forward_combo(9, 2, "OVR", team("TBL"), event("COM"), team("WSH")).
+forward_combo(10, 1, "OVR", nationality("SWEDEN"), event("COM"), team("NSH")).
+forward_combo(11, 1, "OVR", team("LAK"), team("SJS"), event("COM")).
+forward_combo(12, 1, "OVR", event("COM"), team("SJS"), event("NG")).
+forward_combo(18, 1, "OVR", event("CHEL"), event("CHEL"), event("CHEL")).
+forward_combo(19, 1, "OVR", event("SPOT"), team("SJS"), event("ICON")).
+forward_combo(50, 1, "OVR", team("TBL"), team("BUF"), team("DET")).
+forward_combo(51, 1, "OVR", nationality("FINLAND"), event("NG"), team("NIA")).
+forward_combo(52, 1, "OVR", team("STL"), event("NG"), nationality("CANADA")).
+forward_combo(54, 1, "OVR", event("HH"), event("ICON"), event("FANT")).
+forward_combo(55, 1, "OVR", event("NG"), team("PHI"), team("WSH")).
+forward_combo(56, 1, "OVR", event("TOTW"), team("FLA"), team("NYI")).
+forward_combo(57, 1, "OVR", team("DAL"), team("WPG"), event("NG")).
+forward_combo(58, 1, "OVR", nationality("SWEDEN"), event("ROOK"), team("TOR")).
+forward_combo(59, 1, "OVR", nationality("GERMANY"), event("XP"), team("EDM")).
+forward_combo(60, 1, "OVR", team("EDM"), event("ICON"), event("ALUM")).
+forward_combo(61, 1, "OVR", team("MTL"), team("TOR"), team("OTT")).
+forward_combo(62, 1, "OVR", team("NY"), team("OTT"), team("VAN")).
+
