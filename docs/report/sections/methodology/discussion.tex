@@ -1,8 +1,7 @@
 \subsection{Discussion and Conclusion}
 
-{\it
-\begin{itemize}
-  \item Discuss the strengths and limitations of your approach.
-  \item What did you learn about combining symbolic and data-driven AI?
-\end{itemize}
-}
+\paragraph{Strengths.} Encoding the lineup problem in ASP gave us clean, declarative constraints: position-group validity, uniqueness of \texttt{player\_id}, attribute-driven combos, and explicit reward arithmetic. Symmetry breaking and multi-combo stacking made the Stage~B grounding usable in practice. The SQLite-backed pipeline and typed API models helped keep data quality under control, while the demo frontend exercised the API contract end-to-end.
+
+\paragraph{Limitations.} Solver performance is adequate for a demo but not yet optimized for production-scale catalogs or very large batch runs. Data freshness and ID stability remain a risk (combo IDs vs. row IDs), and the current evaluation lacks user-facing quality metrics (e.g., perceived lineup quality). Figures are locally referenced and ignored in VCS, so reproducible builds require local assets.
+
+\paragraph{Lessons learned.} ASP was a good fit for expressing tight constraints and optimization, but we had to be disciplined about canonical forms (symmetry) and explicit reward calculations to avoid silent duplicates or arithmetic drift. A small, stable data pipeline (CSV~$\rightarrow$ SQLite) is essential before solver tuning. Finally, having a versioned JSON contract between backend and frontend reduced integration friction and made it easier to demo incomplete solver stages.
