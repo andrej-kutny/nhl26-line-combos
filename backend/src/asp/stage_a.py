@@ -11,6 +11,8 @@ specific players. It returns the top-K abstract solutions.
 
 import time
 from typing import Literal
+import clingo
+from pathlib import Path
 
 from ..core.data import get_data_loader
 from ..core.models import ForwardLineCombo, DefenseLineCombo, RewardType
@@ -19,6 +21,8 @@ from .interfaces import (
     StageAOutput,
     StageASolution,
     StageASolver,
+    ActiveComboInfo,
+    PlayerAttribute,
 )
 
 
@@ -181,69 +185,151 @@ class StageAInputGenerator:
             return (base_ovr, base_sal, base_ap)
 
 
-# =============================================================================
-# MOCK SOLVER (Placeholder until ASP team implements)
-# =============================================================================
-
-class MockStageASolver(StageASolver):
+class ClingoStageASolver(StageASolver):
     """
     Mock Stage A solver for development/testing.
     
     Returns synthetic solutions based on actual combo data.
     ASP team will replace this with real Clingo implementation.
     """
+
+    def _Clingo_solve(self, files, extra_rules="", consts=None, ctl_opts=None):
+        opts = list(ctl_opts or [])
+        if consts:
+            for k, v in consts.items():
+                opts.append(f"-c {k}={v}")
+        
+        ctl = clingo.Control(opts)
+        for f in files:
+            ctl.load(f)
+        
+        if extra_rules.strip():
+            ctl.add("extra", [], extra_rules)
+            ctl.ground([("base", []), ("extra", [])])
+        else:
+            ctl.ground([("base", [])])
+
+        models, opt = [], None
+        models_c = 0
+        def on_model(m):
+            nonlocal opt, models_c
+            models_c += 1
+            models.append(m.symbols(shown=True))
+            if m.cost:
+                opt = tuple(m.cost)
+        res = ctl.solve(on_model=on_model)
+        return res, models, opt, models_c
+
     
     def __init__(self):
         self.loader = get_data_loader()
     
     def solve(self, input_data: StageAInput) -> StageAOutput:
         """
-        Generate mock Stage A solutions.
-        
-        Creates plausible solutions by selecting random subsets of combos.
+        Run Stage A optimization using Clingo.
         """
         start_time = time.time()
         
-        # Get actual combos to create realistic mock data
-        if input_data.position_type == "forward":
-            combos = self.loader.get_forward_combos()
-        else:
-            combos = self.loader.get_defense_combos()
+        # Determine rules based on position
+        current_dir = Path(__file__).parent
+        base_path = current_dir / "g1a_abstraction"
         
-        # Filter combos by mode
-        filtered_combos = [
-            c for c in combos
-            if self._combo_matches_mode(c.reward_type, input_data.optimization_mode)
+        rules = [
+            str(base_path / "target_threshold_lookup.lp"),
+            str(base_path / "rules.lp")
         ]
         
-        # Generate mock solutions
-        solutions = []
-        num_solutions = min(input_data.top_k, len(filtered_combos))
+        if input_data.position_type == "forward":
+            rules.append(str(base_path / "fwd_rules.lp"))
+        else:
+            rules.append(str(base_path / "def_rules.lp"))
+            
+        # Use generated facts from input
+        extra_rules = "\n".join(input_data.combo_facts)
         
-        for rank in range(1, num_solutions + 1):
-            # Select a subset of combos for this solution
-            # In reality, ASP would find optimal non-conflicting subsets
-            selected = filtered_combos[rank - 1 : rank]  # Just one combo per solution for mock
+        # Weights
+        consts = {
+            "w_ovr": int(input_data.ovr_weight),
+            "w_sal": int(input_data.sal_weight),
+            "w_ap": int(input_data.ap_weight)
+        }
+        
+        # Solve
+        res, models, opt, models_c = self._Clingo_solve(rules, extra_rules, consts=consts, ctl_opts=["0"])
+        
+        solutions: list[StageASolution] = []
+        
+        for model_symbols in models:
+            sol = StageASolution(rank=0, combo_ids=[]) # rank updated later
             
-            combo_ids = [c.id for c in selected]
-            gain_ovr = sum(c.reward_amount for c in selected if c.reward_type == RewardType.OVR)
-            gain_sal = sum(c.reward_amount for c in selected if c.reward_type == RewardType.SAL)
-            gain_ap = sum(c.reward_amount for c in selected if c.reward_type == RewardType.AP)
+            for symbol in model_symbols:
+                if symbol.name == "fwd_active_combo" or symbol.name == "def_active_combo":
+                    # fwd_active_combo(ID, Reward, Type)
+                    args = symbol.arguments
+                    if len(args) >= 3:
+                        c_id = args[0].number
+                        reward = args[1].number
+                        # Handle string/symbol for type
+                        r_type_sym = args[2]
+                        r_type = r_type_sym.string if r_type_sym.type == clingo.SymbolType.String else str(r_type_sym)
+                        # Remove quotes if present (clingo string conversion might keep them)
+                        r_type = r_type.replace('"', '')
+                        
+                        sol.active_combos.append(ActiveComboInfo(
+                            combo_id=c_id,
+                            reward_amount=reward,
+                            reward_type=r_type
+                        ))
+                        sol.combo_ids.append(c_id)
+                        
+                        if r_type == "OVR":
+                            sol.gain_ovr += reward
+                        elif r_type == "SAL":
+                            sol.gain_sal += reward
+                        elif r_type == "AP":
+                            sol.gain_ap += reward
+                        
+                elif symbol.name == "player_attr":
+                    # player_attr(Slot, attr(Val))
+                    args = symbol.arguments
+                    if len(args) >= 2:
+                        slot = args[0].number
+                        attr_fun = args[1]
+                        attr_type = attr_fun.name
+                        # Value might be string or function/constant
+                        if len(attr_fun.arguments) > 0:
+                            attr_val_sym = attr_fun.arguments[0]
+                            attr_val = attr_val_sym.string if attr_val_sym.type == clingo.SymbolType.String else str(attr_val_sym)
+                            attr_val = attr_val.replace('"', '')
+                            
+                            sol.player_attrs.append(PlayerAttribute(
+                                slot=slot,
+                                attr_type=attr_type,
+                                attr_value=attr_val
+                            ))
+                    
+                elif symbol.name == "total_reward":
+                    if len(symbol.arguments) > 0:
+                        sol.total_reward = symbol.arguments[0].number
+
+            solutions.append(sol)
             
-            solutions.append(StageASolution(
-                rank=rank,
-                combo_ids=combo_ids,
-                gain_ovr=gain_ovr,
-                gain_sal=gain_sal,
-                gain_ap=gain_ap,
-            ))
+        # Sort by total gain (highest first)
+        solutions.sort(key=lambda x: x.total_gain, reverse=True)
+        
+        # Take top K
+        solutions = solutions[:input_data.top_k]
+        
+        # Assign ranks
+        for i, sol in enumerate(solutions):
+            sol.rank = i + 1
         
         solve_time = (time.time() - start_time) * 1000
         
         return StageAOutput(
             solutions=solutions,
             solve_time_ms=solve_time,
-            total_models_found=len(solutions),
+            total_models_found=len(models)
         )
     
     def _combo_matches_mode(self, reward_type: RewardType, mode: str) -> bool:
@@ -271,4 +357,4 @@ def get_stage_a_solver() -> StageASolver:
         from .clingo_solver import ClingoStageASolver
         return ClingoStageASolver()
     """
-    return MockStageASolver()
+    return ClingoStageASolver()

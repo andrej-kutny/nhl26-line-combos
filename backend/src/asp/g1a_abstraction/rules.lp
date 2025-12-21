@@ -30,14 +30,14 @@ has_nationality(P) :- player_attr(P, nationality(_)).
 same_team(P, P1) :- player(P), player(P1), P1=P+1, player_attr(P, team(T)), player_attr(P1, team(T)).
 same_team(P, P1) :- player(P), player(P1), P1=P+1, not has_team(P), not has_team(P1).
 
-:- player(P), player(P+1), same_team(P, P+1), has_event(P), not has_event(P+1).
+:- player(P), player(P+1), same_team(P, P+1), not has_event(P), has_event(P+1).
 :- player(P), player(P+1), same_team(P, P+1), player_attr(P, event(E1)), player_attr(P+1, event(E2)), E1 > E2.
 
 % If Teams and Events equal, compare Nationalities
 same_event(P, P1) :- player(P), player(P1), P1=P+1, player_attr(P, event(E)), player_attr(P1, event(E)).
 same_event(P, P1) :- player(P), player(P1), P1=P+1, not has_event(P), not has_event(P1).
 
-:- player(P), player(P+1), same_team(P, P+1), same_event(P, P+1), has_nationality(P), not has_nationality(P+1).
+:- player(P), player(P+1), same_team(P, P+1), same_event(P, P+1), not has_nationality(P), has_nationality(P+1).
 :- player(P), player(P+1), same_team(P, P+1), same_event(P, P+1), player_attr(P, nationality(N1)), player_attr(P+1, nationality(N2)), N1 > N2.
 
 #show player_attr/2.
