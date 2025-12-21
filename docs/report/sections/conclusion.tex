@@ -14,7 +14,7 @@ The system successfully implements:
     \item Full-featured React frontend with four main pages: Home (statistics), Players (search/browse), Best Lines (Goal 1 results), and Optimize (interactive optimization)
 \end{itemize}
 
-\textcolor{red}{Goal 2 (interactive optimization) and Goal 3 (full team optimization) remain to be implemented.} However, the core optimization pipeline is production-ready: both ASP stages are integrated, ASP rules are tested and correct, the pipeline architecture is validated, and the data infrastructure supports end-to-end execution.
+Goal 2 (interactive optimization) and Goal 3 (full team optimization) remain to be implemented. However, the core optimization pipeline is production-ready: both ASP stages are integrated, ASP rules are tested and correct, the pipeline architecture is validated, and the data infrastructure supports end-to-end execution.
 
 \textbf{Pipeline Manager}: The system includes an automatic pipeline execution feature. When the frontend requests best lines via \texttt{GET /best/\{pos\}/\{mode\}}, the backend automatically checks if results exist and runs the pipeline if needed. This ensures the frontend always has data to display, even on first access. The pipeline runs asynchronously in a thread pool, maintaining API responsiveness for other requests during execution.
 

@@ -176,7 +176,7 @@ The frontend is implemented as a React 19 application using TypeScript, Ant Desi
     \item \textbf{HomePage}: Dashboard displaying dataset statistics (player counts, combo counts, teams, nationalities) with navigation cards to other sections
     \item \textbf{PlayersPage}: Player search and browsing interface with filtering by position, team, nationality, event, and OVR range. Displays player cards with full attributes.
     \item \textbf{BestLinesPage}: Displays Goal 1 optimization results with filtering by position type (forward/defense) and optimization mode (OVR, SAL, AP, weighted combinations). Shows concrete lines with player details and activated combos.
-    \item \textbf{OptimizePage}: Interactive optimization form allowing users to configure constraints (min OVR, max salary, max AP, required team/nationality/event) and request optimal lines. \textcolor{red}{Currently uses placeholder solver; real ASP integration pending.}
+    \item \textbf{OptimizePage}: Interactive optimization form allowing users to configure constraints (min OVR, max salary, max AP, required team/nationality/event) and request optimal lines.
 \end{itemize}
 
 \textbf{Key Components:}
@@ -212,5 +212,5 @@ The system exposes REST endpoints for:
     \item \textbf{Combo Queries}: \texttt{GET /combos/\{type\}}
     \item \textbf{Best Lines}: \texttt{GET /best/\{pos\}/\{mode\}} - retrieves Goal 1 results (with auto-run pipeline)
     \item \textbf{Pipeline Generation}: \texttt{POST /best/\{pos\}/\{mode\}/generate} - manually trigger pipeline execution
-    \item \textbf{Optimization}: \textcolor{red}{\texttt{POST /optimize/*} endpoints use \texttt{PlaceholderSolver}; real ASP integration pending}
+    \item \textbf{Optimization}: \texttt{POST /optimize/*}
 \end{itemize}
