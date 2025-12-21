@@ -1,37 +1,216 @@
 \section{Methodology}
 
-Content depends on your chosen track, but structure is similar
+This project primarily follows \textbf{Tracks 2 + 3} (ASP-based reasoning), with a focus on combinatorial optimization using Answer Set Programming. The system architecture separates data management, ASP rule encoding, and result persistence into distinct layers.
 
-\subsection*{Ontology + KG parts (Tracks 1 + 3)}
+\subsection{System Architecture}
 
-{\it 
+The system follows a layered architecture with clear separation of concerns:
+
 \begin{itemize}
-  \item Describe ontology design: main classes, object/data properties, restrictions.
-  \item Include a diagram or screenshot of your class hierarchy.
-  \item Explain how you populated the KG (data source, manual vs. automated, number of individuals/triples).
+    \item \textbf{Presentation Layer}: React-based frontend for user interaction
+    \item \textbf{API Layer}: FastAPI backend providing REST endpoints
+    \item \textbf{Core Layer}: Data models, SQLite data loading, and business logic
+    \item \textbf{ASP Layer}: Clingo integration for optimization (Goal 1 pipeline)
+    \item \textbf{Data Layer}: SQLite database storing player cards and line combinations
 \end{itemize}
-}
 
-\subsection*{ASP part (Tracks 2 + 3)}
+The architecture enables parallel development: the backend provides mock solvers while ASP rules are developed and tested independently.
 
-{\it 
+\subsection{Data Model and Storage}
+
+The system uses \textbf{SQLite} for persistent storage, populated from CSV files via an automated ingestion pipeline. The database schema includes:
+
 \begin{itemize}
-  \item Describe the ASP encoding: main predicates, rules, constraints.
-  \item Explain how the ASP part interacts with the ontology/KG (if applicable).
-  \item Explain why ASP is suited for this reasoning.
-\end{itemize} 
-}
-
-\subsection*{Hybrid part (Track 1)}
-
-{\it 
-\begin{itemize}     
-  \item Include a simple architecture diagram (e.g., query $\rightarrow$ KG $\rightarrow$ fallback to LLM).
-  \item Explain how the ontology/KG is used to enhance LLM responses.
-
+    \item \textbf{Player Tables}: \texttt{forwards}, \texttt{defense}, \texttt{goalies} - storing card attributes (OVR, salary, team, nationality, event)
+    \item \textbf{Combo Tables}: \texttt{forward\_combos}, \texttt{defense\_combos} - storing line combination templates
+    \item \textbf{Result Tables}: \texttt{goal1\_runs}, \texttt{goal1\_stage\_a\_results}, \texttt{goal1\_concrete\_lines} - persisting optimization results
 \end{itemize}
-}
+
+The data loader (\texttt{DataLoader}) provides efficient querying with filtering by team, nationality, event, and OVR ranges. This design allows the ASP layer to work with pre-filtered, structured data rather than raw CSV files.
+
+\subsection{ASP Encoding for Goal 1}
+
+Goal 1 implements a \textbf{two-stage optimization pipeline} to handle the combinatorial explosion:
+
+\subsubsection{Stage A: Abstract Optimization}
+
+Stage A optimizes over \textit{line combination templates} without considering specific players. The ASP encoding includes:
+
+\textbf{Main Predicates:}
+\begin{itemize}
+    \item \texttt{forward\_combo(ID, Reward, Type, Entry1, Entry2, Entry3)} - Forward combo definitions
+    \item \texttt{defense\_combo(ID, Reward, Type, Entry1, Entry2)} - Defense combo definitions
+    \item \texttt{player\_attr(PlayerSlot, Attribute)} - Abstract attribute assignments to player slots
+    \item \texttt{fwd\_active\_combo(ID, Reward, Type)} / \texttt{def\_active\_combo(ID, Reward, Type)} - Activated combos
+    \item \texttt{total\_reward(Total)} - Weighted sum of activated combo rewards
+\end{itemize}
+
+\textbf{Key Rules:}
+\begin{itemize}
+    \item \textbf{Attribute Generation}: Each player slot (1-3 for forwards, 1-2 for defense) can have at most one attribute per type (team, nationality, event)
+    \item \textbf{Combo Activation}: A combo activates when player slots match its requirements in canonical order
+    \item \textbf{Symmetry Breaking}: Lexicographic ordering of attributes prevents redundant solutions
+    \item \textbf{Optimization}: \texttt{\#maximize \{ T : total\_reward(T) \}} maximizes weighted reward
+\end{itemize}
+
+The rules handle permutation symmetry by canonicalizing combo requirements (e.g., sorting entries lexicographically) and enforcing attribute ordering constraints.
+
+\subsubsection{Stage B: Concrete Line Enumeration}
+
+\texttt{ClingoStageBSolver} enumerates concrete player lines that satisfy Stage A combo selections. The ASP encoding includes:
+
+\textbf{Main Predicates:}
+\begin{itemize}
+    \item \texttt{player(CardID, OVR, Team, Nationality, Event)} - Player card facts
+    \item \texttt{card\_player(CardID, PlayerID)} - Mapping cards to real players (for uniqueness)
+    \item \texttt{salary(CardID, Amount)} / \texttt{ap(CardID, Amount)} - Resource constraints
+    \item \texttt{in\_line(CardID)} - Selected cards forming a line
+    \item \texttt{combo\_satisfied(ComboID)} - Combo activation verification
+\end{itemize}
+
+\textbf{Key Rules:}
+\begin{itemize}
+    \item \textbf{Line Formation}: Exactly 3 players for forwards, 2 for defense
+    \item \textbf{Uniqueness Constraint}: No duplicate \texttt{player\_id} within a line (enforced via \texttt{card\_player/2})
+    \item \textbf{Symmetry Breaking}: Canonical ordering by \texttt{card\_id} prevents duplicate lines
+    \item \textbf{Combo Satisfaction}: All selected combos from Stage A must be satisfied by the line
+    \item \textbf{Resource Constraints}: Salary cap and AP limits enforced, with combo bonuses providing relief
+    \item \textbf{Optimization}: Multi-level optimization prioritizing combo bonuses, then OVR, then resource efficiency
+\end{itemize}
+
+The solver uses Clingo's \texttt{--opt-mode=optN} to enumerate all optimal solutions and includes deduplication logic to handle Clingo's progressive optimization output.
 
 
-\input{sections/methodology/evaluation}
-\input{sections/methodology/discussion}
+\subsection{Goal 1 Pipeline Implementation}
+
+The pipeline orchestrator (\texttt{Goal1Pipeline}) coordinates:
+
+\begin{enumerate}
+    \item \textbf{Stage A Input Generation}: Converts SQLite combo data into ASP facts
+    \item \textbf{Stage A Solving}: Uses \texttt{ClingoStageASolver} to execute ASP rules (\texttt{rules.lp}, \texttt{fwd\_rules.lp}, \texttt{def\_rules.lp}) with Clingo and parse solutions into \texttt{StageASolution} objects
+    \item \textbf{Stage B Input Generation}: For each Stage A solution, queries candidate players matching combo attributes
+    \item \textbf{Stage B Solving}: Uses \texttt{ClingoStageBSolver} to execute ASP rules (\texttt{base.lp}, \texttt{forward\_line.lp}, \texttt{defense\_pair.lp}) and enumerate concrete lines with player assignments
+    \item \textbf{Result Storage}: Persists Stage A solutions and Stage B concrete lines to SQLite
+\end{enumerate}
+
+The pipeline supports multiple optimization modes: \texttt{ovr}, \texttt{sal}, \texttt{ap}, \texttt{ovr\_sal}, and \texttt{ovr\_sal\_ap}, with configurable weights per position type.
+
+\subsubsection{Stage A Implementation Details}
+
+The \texttt{ClingoStageASolver} implementation includes:
+
+\begin{itemize}
+    \item \textbf{ASP Rule Loading}: Dynamically loads position-specific rules (\texttt{fwd\_rules.lp} or \texttt{def\_rules.lp}) along with shared rules (\texttt{rules.lp}, \texttt{target\_threshold\_lookup.lp})
+    \item \textbf{Fact Generation}: Converts \texttt{ForwardLineCombo} and \texttt{DefenseLineCombo} database models into ASP facts in the format expected by the rules
+    \item \textbf{Weight Configuration}: Passes optimization weights (\texttt{w\_ovr}, \texttt{w\_sal}, \texttt{w\_ap}) as Clingo constants
+    \item \textbf{Solution Parsing}: Extracts active combos, player attributes, and reward totals from Clingo model symbols
+    \item \textbf{Hybrid Symmetry Breaking}: Implements "Pack Right" strategy for Teams and "Pack Left" for Events/Nationalities to handle valid combinations correctly
+    \item \textbf{Canonicalization}: Enforces strict alphabetical sorting of combo requirements (A <= B <= C) to reduce search space
+\end{itemize}
+
+\textbf{Status}: ✓ Fully implemented and integrated into the pipeline.
+
+\subsection{ASP Rules Testing}
+
+The ASP rules are tested at multiple levels:
+
+\textbf{ASP Logic Tests} (\texttt{test\_asp\_g1a.py}): Tests ASP rules independently using Clingo directly, verifying:
+\begin{itemize}
+    \item Rule satisfiability across all combo types (OVR, SAL, AP) for both forwards and defense
+    \item Correct optimization behavior (cost minimization)
+    \item Weight application (multiplier logic)
+    \item Threshold lookup functionality
+    \item No duplicate combo sets in solutions
+    \item Model counts match expected combinatorial possibilities
+\end{itemize}
+
+\textbf{Backend Integration Tests} (\texttt{test\_g1a\_backend\_logic.py}, \texttt{test\_stage\_a\_extended.py}): Validate the Python integration layer:
+\begin{itemize}
+    \item Domain objects (\texttt{LineCombo}) correctly trigger expected ASP logic
+    \item Input generation handles edge cases (empty inputs, special characters)
+    \item String parsing correctly handles spaces and special characters in combo definitions
+    \item \texttt{ClingoStageASolver} correctly parses Clingo output into \texttt{StageASolution} objects
+\end{itemize}
+
+This multi-level testing approach validates both ASP logic correctness and Python integration separately.
+
+\subsubsection{Stage B Implementation Details}
+
+The \texttt{ClingoStageBSolver} implementation includes:
+
+\begin{itemize}
+    \item \textbf{ASP Rule Loading}: Dynamically loads position-specific rules (\texttt{forward\_line.lp} or \texttt{defense\_pair.lp}) along with shared base rules (\texttt{base.lp})
+    \item \textbf{Fact Generation}: Converts candidate players and combo facts into ASP format with proper type casting (int for numerical fields)
+    \item \textbf{Optimal Enumeration}: Uses Clingo's \texttt{--opt-mode=optN} to find all optimal solutions
+    \item \textbf{Result Deduplication}: Handles Clingo's progressive optimization output by tracking line signatures (sorted card IDs) to ensure distinct lines
+    \item \textbf{Solution Parsing}: Extracts player card IDs, activated combos, and totals (OVR, salary, AP) from Clingo model symbols
+    \item \textbf{Constraint Enforcement}: Validates unique player constraints, salary caps, and combo satisfaction
+\end{itemize}
+
+\textbf{Integration Tests} (\texttt{test\_stage\_b\_integration.py}) verify:
+\begin{itemize}
+    \item Unique player constraints (no duplicate \texttt{player\_id} in a line)
+    \item Salary cap enforcement (strict adherence to limits)
+    \item Salary relief from combo bonuses (allowing otherwise invalid lines)
+    \item Optimization priorities (combo bonuses prioritized over raw OVR)
+    \item Complete enumeration of valid combinations
+    \item Constraint exclusion handling
+\end{itemize}
+
+This testing approach validates ASP logic independently of the Python integration layer.
+
+\subsection{Frontend Implementation}
+
+The frontend is implemented as a React 19 application using TypeScript, Ant Design components, and React Router for navigation. The application provides a complete user interface for exploring players, viewing optimization results, and configuring optimization requests.
+
+\textbf{Technology Stack:}
+\begin{itemize}
+    \item \textbf{React 19} with TypeScript for type-safe component development
+    \item \textbf{Ant Design} (antd) for UI components (cards, forms, tables, statistics)
+    \item \textbf{React Router} for client-side routing and navigation
+    \item \textbf{Vite} as the build tool and development server
+\end{itemize}
+
+\textbf{Implemented Pages:}
+\begin{itemize}
+    \item \textbf{HomePage}: Dashboard displaying dataset statistics (player counts, combo counts, teams, nationalities) with navigation cards to other sections
+    \item \textbf{PlayersPage}: Player search and browsing interface with filtering by position, team, nationality, event, and OVR range. Displays player cards with full attributes.
+    \item \textbf{BestLinesPage}: Displays Goal 1 optimization results with filtering by position type (forward/defense) and optimization mode (OVR, SAL, AP, weighted combinations). Shows concrete lines with player details and activated combos.
+    \item \textbf{OptimizePage}: Interactive optimization form allowing users to configure constraints (min OVR, max salary, max AP, required team/nationality/event) and request optimal lines. \textcolor{red}{Currently uses placeholder solver; real ASP integration pending.}
+\end{itemize}
+
+\textbf{Key Components:}
+\begin{itemize}
+    \item \texttt{PlayerCard}: Displays individual player card information
+    \item \texttt{PlayerSearch}: Search and filter interface for players
+    \item \texttt{ComboCard}: Displays line combination information
+    \item \texttt{LineDisplay}: Renders complete lines with player details and activated combos
+\end{itemize}
+
+The frontend communicates with the backend via REST API calls using a centralized API client (\texttt{api/client.ts}) that handles HTTP requests and error handling. The application uses custom React hooks (\texttt{useApi}) for data fetching with loading states and error handling.
+
+\subsection{Pipeline Manager}
+
+To ensure the frontend always has results to display, a \textbf{Pipeline Manager} module automatically runs the Goal 1 pipeline when results are missing. This module provides:
+
+\begin{itemize}
+    \item \textbf{Result Checking}: \texttt{has\_results()} - Async function to check if results exist for a position/mode
+    \item \textbf{Auto-Run}: \texttt{ensure\_results()} - Automatically executes the pipeline if results are missing
+    \item \textbf{Non-Blocking Execution}: All operations use \texttt{asyncio.to\_thread()} to run in a thread pool, preventing blocking of the FastAPI event loop
+\end{itemize}
+
+\textbf{Integration}: The \texttt{GET /best/\{pos\}/\{mode\}} endpoint automatically calls \texttt{ensure\_results()} when \texttt{auto\_run=True} (default), ensuring results are generated on first access. This allows the frontend to work seamlessly without manual pipeline execution.
+
+\textbf{Performance}: By running the pipeline in a thread pool, other API requests (player queries, stats, etc.) can be handled concurrently while the pipeline executes, maintaining API responsiveness.
+
+\subsection{API Endpoints}
+
+The system exposes REST endpoints for:
+
+\begin{itemize}
+    \item \textbf{Player Queries}: \texttt{GET /players/\{type\}} with filtering
+    \item \textbf{Combo Queries}: \texttt{GET /combos/\{type\}}
+    \item \textbf{Best Lines}: \texttt{GET /best/\{pos\}/\{mode\}} - retrieves Goal 1 results (with auto-run pipeline)
+    \item \textbf{Pipeline Generation}: \texttt{POST /best/\{pos\}/\{mode\}/generate} - manually trigger pipeline execution
+    \item \textbf{Optimization}: \textcolor{red}{\texttt{POST /optimize/*} endpoints use \texttt{PlaceholderSolver}; real ASP integration pending}
+\end{itemize}
