@@ -8,11 +8,12 @@ Endpoints:
     GET /best/runs - List available Goal 1 runs
 """
 
+import asyncio
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ...core.data import get_data_loader, get_results_store
+from ...core.data import get_data_loader, get_results_store, ensure_results
 from ...core.models import (
     Goal1Run,
     Goal1ConcreteLine,
@@ -186,6 +187,10 @@ async def get_best_lines(
         description="Sort order",
         pattern="^(ranking_score|total_ovr|total_salary|id) (ASC|DESC)$",
     ),
+    auto_run: bool = Query(
+        True,
+        description="Automatically run pipeline if no results exist (default: True)",
+    ),
 ):
     """
     Get best concrete lines for a position type and optimization mode.
@@ -201,12 +206,23 @@ async def get_best_lines(
     - **offset**: Pagination offset (default: 0)
     - **run_id**: Specific run ID to query (default: latest run for pos/mode)
     - **order_by**: Sort order (default: ranking_score DESC)
+    - **auto_run**: Automatically run pipeline if no results exist (default: True)
+    
+    ## Auto-Run Feature
+    
+    If `auto_run=True` (default) and no results exist for the requested position/mode,
+    the endpoint will automatically execute the Goal 1 pipeline to generate results.
+    This ensures the frontend always has data to display, even on first access.
+    
+    To disable auto-run (e.g., for faster responses when you know results exist),
+    set `auto_run=False`.
     
     ## Example
     
     ```
     GET /best/forward/ovr?limit=10
     GET /best/defense/sal?run_id=5&limit=20
+    GET /best/forward/ovr?auto_run=false  # Skip auto-generation
     ```
     
     ## Response
@@ -247,7 +263,31 @@ async def get_best_lines(
                        f"not {pos}/{mode}.",
             )
     else:
-        run = store.get_latest_run(position_type=pos, optimization_mode=mode)
+        # Auto-run pipeline if no results exist (if enabled)
+        # Use async ensure_results to run pipeline in thread pool,
+        # allowing other requests to be handled concurrently instead of blocking
+        run_id_auto = None
+        if auto_run:
+            try:
+                run_id_auto = await ensure_results(
+                    position_type=pos,
+                    optimization_mode=mode,
+                    top_k=50,  # Reasonable default for auto-generation
+                    player_limit=50,  # Reasonable default to avoid long computation
+                    min_lines=1,
+                    auto_run=True,
+                )
+            except Exception as e:
+                # Log error but don't fail the request - return empty results instead
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to auto-run pipeline for {pos}/{mode}: {e}", exc_info=True)
+        
+        if run_id_auto:
+            run = store.get_run(run_id_auto)
+        else:
+            run = store.get_latest_run(position_type=pos, optimization_mode=mode)
+        
         if not run:
             return BestLinesResponse(
                 success=True,
@@ -280,6 +320,57 @@ async def get_best_lines(
         total_lines=total_lines,
         lines=enriched_lines,
     )
+
+
+@router.post("/{pos}/{mode}/generate")
+async def generate_best_lines(
+    pos: str,
+    mode: str,
+    top_k: int = Query(50, ge=1, le=200, description="Number of Stage A solutions"),
+    player_limit: int = Query(50, ge=10, le=200, description="Max players per Stage B pool"),
+):
+    """
+    Manually trigger pipeline execution to generate best lines.
+    
+    This endpoint runs the Goal 1 pipeline for the specified position and mode,
+    generating and storing results in the database.
+    
+    Returns the run ID and statistics.
+    """
+    if pos not in ("forward", "defense"):
+        raise HTTPException(status_code=400, detail=f"Invalid position: {pos}")
+    
+    valid_modes = {"ovr", "sal", "ap", "ovr_sal", "ovr_sal_ap"}
+    if mode not in valid_modes:
+        raise HTTPException(status_code=400, detail=f"Invalid mode: {mode}")
+    
+    try:
+        from ...asp.pipeline import run_goal1_pipeline
+        
+        result = run_goal1_pipeline(
+            position_type=pos,
+            optimization_mode=mode,
+            top_k=top_k,
+            player_limit=player_limit,
+            store_results=True,
+        )
+        
+        return {
+            "success": True,
+            "run_id": result.run_id,
+            "position_type": pos,
+            "optimization_mode": mode,
+            "stage_a_solutions": result.stage_a_solutions,
+            "stage_b_lines_total": result.stage_b_lines_total,
+            "total_time_ms": result.total_time_ms,
+            "stage_a_time_ms": result.stage_a_time_ms,
+            "stage_b_time_ms": result.stage_b_time_ms,
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Pipeline execution failed: {str(e)}",
+        )
 
 
 @router.get("/{pos}/{mode}/summary")

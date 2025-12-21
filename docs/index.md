@@ -10,7 +10,6 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 
 ### Architecture & Design
 - [System Architecture](ARCHITECTURE.md) - How the system is structured
-- [Goal 1 Pipeline](GOAL_1.md) - Two-stage ASP optimization pipeline
 
 ### API Documentation
 - [Swagger UI](http://localhost:8000/docs) - Interactive API docs (when server running)
@@ -18,11 +17,7 @@ Welcome to the NHL 26 Line Combos Optimizer documentation.
 
 ### Backend Documentation
 - [Data Models](backend/DATA_MODELS.md) - Player, combo, and API models
-- [ASP Integration](backend/ASP_INTEGRATION.md) - Clingo solver implementation
 - [Development Guide](backend/DEVELOPMENT.md) - Setup, testing, contributing
-
-### Frontend Documentation
-- [Frontend Integration](FRONTEND_INTEGRATION.md) - Connecting UI to API
 
 ---
 
@@ -68,11 +63,8 @@ nhl26-line-combos/
 ├── docs/                    # 📍 You are here
 │   ├── index.md            # This file
 │   ├── ARCHITECTURE.md     # System design
-│   ├── GOAL_1.md           # Goal 1 pipeline
-│   ├── FRONTEND_INTEGRATION.md  # Frontend guide
 │   └── backend/            # Backend-specific docs
 │       ├── DATA_MODELS.md
-│       ├── ASP_INTEGRATION.md
 │       └── DEVELOPMENT.md
 └── README.md               # Project overview
 ```

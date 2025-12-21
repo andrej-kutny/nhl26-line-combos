@@ -159,8 +159,15 @@ class TestGetBestLines:
     
     def test_get_best_lines_empty_result(self):
         """Returns empty lines when no results exist."""
-        # Use a mode that likely has no results
-        response = client.get("/best/defense/ovr_sal_ap")
+        store = get_results_store()
+        
+        # Delete any existing runs for this mode to ensure empty state
+        runs = store.list_runs(position_type="defense", optimization_mode="ovr_sal_ap")
+        for run in runs:
+            store.delete_run(run.id)
+        
+        # Disable auto-run to test the original behavior when no results exist
+        response = client.get("/best/defense/ovr_sal_ap?auto_run=false")
         
         assert response.status_code == 200
         data = response.json()
