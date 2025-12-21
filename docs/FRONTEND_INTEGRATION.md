@@ -1,18 +1,18 @@
 # Frontend Integration Guide
 
-This guide explains how to connect frontend application to the API.
+This guide explains how to connect the frontend application to the API.
 
-**Target frontend**: Angular v21
+**Frontend Stack**: React 18 + Ant Design + Vite
 
 ## API Base URL
 
 ```
-Development: http://localhost:8000
+Development: http://localhost:8000 (proxied via Vite at /api)
 ```
 
 ## Quick Start
 
-### 1. Start the API Server
+### 1. Start the Backend API Server
 
 ```bash
 cd nhl26-line-combos/backend
@@ -20,14 +20,22 @@ source venv/bin/activate
 uvicorn src.api.main:app --reload --port 8000
 ```
 
-### 2. Verify API is Running
+### 2. Start the Frontend Dev Server
+
+```bash
+cd nhl26-line-combos/frontend
+yarn dev
+# Opens at http://localhost:5173
+```
+
+### 3. Verify API is Running
 
 ```bash
 curl http://localhost:8000/health
 # {"status":"healthy","data":"loaded"}
 ```
 
-### 3. Access API Documentation
+### 4. Access API Documentation
 
 Open http://localhost:8000/docs for interactive Swagger UI.
 
@@ -322,26 +330,50 @@ interface OptimizationResponse {
 }
 ```
 
-## Angular example (HttpClient)
+## React Example (with hooks)
 
 ```typescript
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+// frontend/src/api/client.ts
+const API_BASE = '/api';  // Proxied to localhost:8000
 
-@Injectable({ providedIn: 'root' })
-export class NhlApi {
-  private readonly baseUrl = 'http://localhost:8000';
-
-  constructor(private readonly http: HttpClient) {}
-
-  lookupPlayers(q: string, mode: 'card' | 'player' = 'card') {
-    const params = new HttpParams().set('q', q).set('mode', mode);
-    return this.http.get(`${this.baseUrl}/players/lookup`, { params });
+export async function apiGet<T>(path: string, params?: Record<string, string | number>): Promise<T> {
+  const url = new URL(`${API_BASE}${path}`, window.location.origin);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) url.searchParams.append(key, String(value));
+    });
   }
+  const response = await fetch(url.toString());
+  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  return response.json();
+}
 
-  optimizeForwardLine(body: unknown) {
-    return this.http.post(`${this.baseUrl}/optimize/forward-line`, body);
-  }
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  return response.json();
+}
+
+// Usage in a component
+import { useState, useEffect } from 'react';
+import { apiGet } from './api/client';
+
+function PlayerList() {
+  const [players, setPlayers] = useState([]);
+  
+  useEffect(() => {
+    apiGet('/players/forwards').then(setPlayers);
+  }, []);
+  
+  return (
+    <ul>
+      {players.map(p => <li key={p.id}>{p.first_name} {p.last_name}</li>)}
+    </ul>
+  );
 }
 ```
 
