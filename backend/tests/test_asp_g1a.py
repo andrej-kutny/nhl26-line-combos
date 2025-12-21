@@ -1,17 +1,45 @@
 import clingo
 import pytest
+from pathlib import Path
 
 from tests.data.asp_g1a import DEF_AP_C, DEF_SAL_C, DEF_OVR_C, FWD_AP_C, FWD_OVR_C, FWD_SAL_C
 
 class TestASP_G1A:
     def solve(self, files, extra_rules="", consts=None, ctl_opts=None):
+        # Resolve paths relative to backend/src/asp/g1a_abstraction
+        # Assuming we are running tests from repo root or backend/
+        # files list contains strings like "src/asp/g1a_abstraction/rules.lp"
+        
+        # Strategy: Find where this test file is, go up to backend/src/asp...
+        # Current file: backend/tests/test_asp_g1a.py
+        # Target: backend/src/asp/g1a_abstraction/...
+        
+        current_dir = Path(__file__).parent.resolve()
+        # Navigate up to 'backend' (parent of tests) then down to src/asp/g1a_abstraction
+        # But we don't know if current_dir is backend/tests or just tests/
+        # Safe bet: locate 'src' folder relative to 'backend' root.
+        
+        # If current_dir ends with 'tests', parent is 'backend' (or root if flattened)
+        backend_root = current_dir.parent
+        asp_root = backend_root / "src" / "asp" / "g1a_abstraction"
+        
+        resolved_files = []
+        for f in files:
+            # f is like "src/asp/g1a_abstraction/rules.lp"
+            # We just want the filename part if we are constructing path manually
+            fname = Path(f).name
+            full_path = asp_root / fname
+            if not full_path.exists():
+                raise FileNotFoundError(f"Could not find ASP file: {full_path}")
+            resolved_files.append(str(full_path))
+
         opts = list(ctl_opts or [])
         if consts:
             for k, v in consts.items():
                 opts.append(f"-c {k}={v}")
         
         ctl = clingo.Control(opts)
-        for f in files:
+        for f in resolved_files:
             ctl.load(f)
         
         if extra_rules.strip():
@@ -180,7 +208,7 @@ class TestASP_G1A:
         assert 'def_active_combo(1,10,"AP")' in model_str
         assert 'def_active_combo(2,5,"AP")' in model_str
 
-    def test_no_duplicates_simple(self):
+    def test_no_duplicates_simple_single(self):
         rules = """
         defense_combo(1, 10, "AP", team("OTT"), event("EVENT")).
         """
@@ -193,7 +221,7 @@ class TestASP_G1A:
         assert res.satisfiable
         assert count == 1
 
-    def test_no_duplicates_simple(self):
+    def test_no_duplicates_simple_mixed(self):
         rules = """
         defense_combo(1, 10, "AP", team("OTT"), event("EVENT")).
         defense_combo(2, 10, "AP", nationality("SWE"), event("EVENT")).
@@ -205,7 +233,9 @@ class TestASP_G1A:
             ctl_opts=["0"]
         )
         assert res.satisfiable
-        assert count == 2
+        # Expect 3 models: {1}, {2}, and {1, 2} (combined)
+        # Previous restrictive logic blocked {1, 2} or one of the singles incorrectly.
+        assert count == 3
         
         str_models = "\n".join([str(model) for model in models])
         assert "total_reward(20)" in str_models
