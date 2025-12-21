@@ -1,14 +1,7 @@
-# tests/asp/test_asp_descriptions.py
 import clingo
 import pytest
 
-# ------------------ runner + helpers ------------------
-
 def solve(files, extra_rules: str = "", consts=None, ctl_opts=None):
-    """
-    Load ASP files + optional inline facts/rules, set #const values,
-    ground, and collect shown atoms from all models.
-    """
     opts = list(ctl_opts or [])
     if consts:
         for k, v in consts.items():
@@ -27,289 +20,694 @@ def solve(files, extra_rules: str = "", consts=None, ctl_opts=None):
     res = ctl.solve(on_model=on_model)
     return res, models
 
-def shown(models, name: str):
-    """Return shown symbols with the given predicate name from the last model."""
-    if not models:
-        return []
+def shown(models, name):
     return [s for s in models[-1] if s.name == name]
 
-def sym_to_str(s: clingo.Symbol) -> str:
-    """Unquote clingo.String symbols and stringify others uniformly."""
-    return s.string if s.type == clingo.SymbolType.String else str(s)
+def sym_to_str(sym: clingo.Symbol) -> str:
+    # your facts use strings like "K000001"; model will contain those as clingo.String
+    return str(sym)
 
-def norm_pair(a, b):
-    """Normalized unordered pair of clingo symbols as python strings."""
-    A, B = sym_to_str(a), sym_to_str(b)
-    return tuple(sorted((A, B)))
+def test_main_description_no_multiple_cards_for_one_player_fwd():
+    extra = r'''
+        id("P000001").
+        type("P000001", "player").
+        nationality("P000001","ROU").
+        id("K000001").
+        type("K000001","card").
+        has_card("P000001","K000001").
+        position("K000001", "C").
+        ovr("K000001", 90).
+        salary("K000001", 100).
+        team("K000001","ABC").
+        card_type("K000001","BASE").
+        id("K000002").
+        type("K000002","card").
+        has_card("P000001","K000002").
+        position("K000002", "C").
+        ovr("K000002", 90).
+        salary("K000002", 100).
+        team("K000002","ABC").
+        card_type("K000002","BASE").
 
-def norm_triple(a, b, c):
-    """Normalized unordered triple of clingo symbols as python strings."""
-    A, B, C = sym_to_str(a), sym_to_str(b), sym_to_str(c)
-    return tuple(sorted((A, B, C)))
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","HUN").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "RW").
+        ovr("K000003", 90).
+        salary("K000003", 100).
+        team("K000003","DEF").
+        card_type("K000003","BASE").
 
-# ------------------ shared base facts ------------------
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","MDA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","LW").
+        ovr("K000004", 60).
+        salary("K000004", 20).
+        team("K000004","GHI").
+        card_type("K000004","BASE").
 
-BASE = r"""
-boost_type("OVR"). boost_type("SAL"). boost_type("AP").
-country("CANADA"). country("USA"). country("FINLAND").
-event("COM"). event("CAP"). event("TOTW").
-club("BOS"). club("VGK"). club("TOR"). club("DET").
-"""
-
-# ------------------ main_description.lp ------------------
-
-@pytest.mark.parametrize("n_lines", [1, 2, 3])
-def test_main_description_forward_line_no_permutations(n_lines):
-    """
-    Property: All triples of forward_card/2 drawn from distinct players that satisfy
-    O1>=O2>=O3 are produced exactly once (permutation-free).
-    Works for any number of rows we generate.
-    """
-    facts = []
-    pid = 1
-    # keep helpers so we can compute expected programmatically
-    cards = []            # list of card ids
-    card_to_player = {}   # card -> player id
-    ovr_val = {}          # card -> ovr
-
-    for i in range(n_lines):
-        for pos, o in [("C", 92), ("LW", 90), ("RW", 88)]:
-            p = f"P{pid}"; pid += 1
-            k = f"K{i}_{pos}"
-            facts += [
-                f'id("{p}"). type("{p}","player"). nationality("{p}","CANADA").',
-                f'id("{k}"). type("{k}","card"). has_card("{p}","{k}"). position("{k}","{pos}").',
-                f'ovr("{k}",{o}). salary("{k}",10). team("{k}","BOS"). card_type("{k}","COM").'
-            ]
-            cards.append(k)
-            card_to_player[k] = p
-            ovr_val[k] = o
-
-    facts += ["#show forward_line/3."]
-    extra = BASE + "\n".join(facts)
-    files = ["src/asp/main_description.lp"]
-    res, models = solve(files, extra_rules=extra)
+        #show forward_line/3.
+    '''
+    res, models = solve(["./src/asp/main_description.lp"], extra)
     assert res.satisfiable
 
-    # What ASP produced (permutation-free via normalization)
     got = {
-        tuple(sorted(map(sym_to_str, s.arguments)))
+        tuple(map(sym_to_str, s.arguments))
         for s in shown(models, "forward_line")
     }
+    expected = {
+        ('"K000001"','"K000003"','"K000004"'),
+        ('"K000002"','"K000003"','"K000004"'),
+        ('"K000003"','"K000001"','"K000004"'),
+        ('"K000003"','"K000002"','"K000004"'),
+    }
+    assert got == expected
 
-    # Expected: all ordered triples A,B,C of cards s.t.
-    # - players are pairwise distinct
-    # - O1>=O2>=O3
-    # Then normalized to be permutation-free for comparison.
-    expected = set()
-    for a in cards:
-        for b in cards:
-            if card_to_player[b] == card_to_player[a]:
-                continue
-            for c in cards:
-                if card_to_player[c] in (card_to_player[a], card_to_player[b]):
-                    continue
-                if ovr_val[a] >= ovr_val[b] >= ovr_val[c]:
-                    expected.add(tuple(sorted((a, b, c))))
+def test_main_description_no_multiple_cards_for_one_player_def():
+    extra = r'''
+        id("P000001").
+        type("P000001", "player").
+        nationality("P000001","ROU").
+        id("K000001").
+        type("K000001","card").
+        has_card("P000001","K000001").
+        position("K000001", "LD").
+        ovr("K000001", 90).
+        salary("K000001", 100).
+        team("K000001","ABC").
+        card_type("K000001", "BASE").
+        id("K000002").
+        type("K000002","card").
+        has_card("P000001","K000002").
+        position("K000002", "LD").
+        ovr("K000002", 90).
+        salary("K000002", 100).
+        team("K000002","ABC").
+        card_type("K000002", "BASE").
 
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","MDA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","RD").
+        ovr("K000004", 60).
+        salary("K000004", 20).
+        team("K000004","GHI").
+        card_type("K000004", "BASE").
+
+        #show defense_line/2.
+    '''
+    res, models = solve(["./src/asp/main_description.lp"], extra)
+    assert res.satisfiable
+
+    got = {
+        tuple(map(sym_to_str, s.arguments))
+        for s in shown(models, "defense_line")
+    }
+    expected = {
+        ('"K000001"','"K000004"'),
+        ('"K000002"','"K000004"'),
+    }
+    assert got == expected
+
+def test_fwd_ovr_description_filter_boosted_lines():
+    extra = r'''
+        event("SPOT"; "ICON"; "BASE").
+        club("SJS"; "ABC"; "GHI").
+
+        id("P000001").
+        type("P000001", "player").
+        nationality("P000001","ROU").
+        id("K000001").
+        type("K000001","card").
+        has_card("P000001","K000001").
+        position("K000001", "C").
+        ovr("K000001", 90).
+        salary("K000001", 100).
+        team("K000001","ABC").
+        card_type("K000001","BASE").
+
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","HUN").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "RW").
+        ovr("K000003", 88).
+        salary("K000003", 80).
+        team("K000003","ABC").
+        card_type("K000003","ICON").
+
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","MDA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","LW").
+        ovr("K000004", 87).
+        salary("K000004", 70).
+        team("K000004","GHI").
+        card_type("K000004","SPOT").
+
+        id("P000004").
+        type("P000004", "player").
+        nationality("P000004","MDA").
+        id("K000005").
+        type("K000005","card").
+        has_card("P000004","K000005").
+        position("K000005","LW").
+        ovr("K000005", 86).
+        salary("K000005", 65).
+        team("K000005","SJS").
+        card_type("K000005","BASE").
+
+        forward_combo(19, 1, "OVR", event("SPOT"), club("SJS"), event("ICON")).
+
+        #show boosted_fwd_line/8.
+    '''
+    res, models = solve(
+        ["./src/asp/main_description.lp", "./src/asp/fwd_ovr_description.lp"],
+        extra_rules=extra,
+        consts={"w_ovr": 3},
+        ctl_opts=["--opt-mode=optN"]
+    )
+    assert res.satisfiable
+
+    got = {
+        tuple(map(sym_to_str, s.arguments))
+        for s in shown(models, "boosted_fwd_line")
+    }
+    expected = {
+        ('"K000003"','"K000004"','"K000005"','"OVR"','1','"ICON"','"SPOT"','"SJS"'),
+    }
+    assert got == expected
+
+def test_def_ovr_description_filter_boosted_lines():
+    extra = r'''
+        event("SPOT"; "ICON"; "BASE";"NG").
+        club("SJS"; "ABC"; "GHI").
+        country("ROU"; "HUN"; "MDA"; "CZECHIA").
+
+        id("P000001").
+        type("P000001", "player").
+        nationality("P000001","ROU").
+        id("K000001").
+        type("K000001","card").
+        has_card("P000001","K000001").
+        position("K000001", "RD").
+        ovr("K000001", 90).
+        salary("K000001", 100).
+        team("K000001","ABC").
+        card_type("K000001","BASE").
+
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","CZECHIA").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "LD").
+        ovr("K000003", 88).
+        salary("K000003", 80).
+        team("K000003","ABC").
+        card_type("K000003","ICON").
+
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","MDA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","RD").
+        ovr("K000004", 87).
+        salary("K000004", 70).
+        team("K000004","GHI").
+        card_type("K000004","NG").
+
+        id("P000004").
+        type("P000004", "player").
+        nationality("P000004","MDA").
+        id("K000005").
+        type("K000005","card").
+        has_card("P000004","K000005").
+        position("K000005","LD").
+        ovr("K000005", 86).
+        salary("K000005", 65).
+        team("K000005","SJS").
+        card_type("K000005","BASE").
+
+        defense_combo(12, 1, "OVR", event("NG"), country("CZECHIA")).
+
+        #show boosted_def_line/6.
+    '''
+    res, models = solve(
+        ["./src/asp/main_description.lp", "./src/asp/fwd_ovr_description.lp"],
+        extra_rules=extra,
+        consts={"w_ovr": 3},
+        ctl_opts=["--opt-mode=optN"]
+    )
+    assert res.satisfiable
+
+    got = {
+        tuple(map(sym_to_str, s.arguments))
+        for s in shown(models, "boosted_def_line")
+    }
+    expected = {
+        ('"K000003"','"K000004"','"OVR"','1','"NG"','"CZECHIA"'),
+        ('"K000003"','"K000004"','"OVR"','1','"CZECHIA"','"NG"'),
+    }
     assert got == expected
 
 
+def test_fwd_ovr_description_show_optimal_top_results():
+    extra = r'''
+        event("SPOT"; "ICON"; "BASE").
+        club("SJS"; "ABC"; "GHI").
 
-# ------------------ fwd_sal_description.lp ------------------
+        id("P000001").
+        type("P000001", "player").
+        nationality("P000001","ROU").
+        id("K000001").
+        type("K000001","card").
+        has_card("P000001","K000001").
+        position("K000001", "C").
+        ovr("K000001", 90).
+        salary("K000001", 100).
+        team("K000001","ABC").
+        card_type("K000001","BASE").
 
-@pytest.mark.parametrize("cap,boost", [(800, 0), (900, 100), (1200, 0)])
-def test_fwd_sal_description_cap_respected(cap, boost):
-    """
-    Property: Every best_forward_line_sal_combination/3 satisfies the cap:
-      salary(A)+salary(B)+salary(C) <= salary_cap + boost*w_sal
-    Also, because your objective sums over chosen items, the optimal model
-    includes *all* feasible SAL combos: chosen == feasible.
-    """
-    facts = [
-        # BOS triple (eligible for SAL forward_combo)
-        'id("P1"). type("P1","player"). nationality("P1","CANADA").',
-        'id("P2"). type("P2","player"). nationality("P2","USA").',
-        'id("P3"). type("P3","player"). nationality("P3","USA").',
-        'id("A"). type("A","card"). has_card("P1","A"). position("A","C"). ovr("A",90). salary("A",400). team("A","BOS"). card_type("A","COM").',
-        'id("B"). type("B","card"). has_card("P2","B"). position("B","LW"). ovr("B",88). salary("B",350). team("B","BOS"). card_type("B","COM").',
-        'id("C"). type("C","card"). has_card("P3","C"). position("C","RW"). ovr("C",86). salary("C",300). team("C","BOS"). card_type("C","COM").',
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","HUN").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "RW").
+        ovr("K000003", 88).
+        salary("K000003", 80).
+        team("K000003","ABC").
+        card_type("K000003","ICON").
 
-        # VGK triple (no SAL forward_combo)
-        'id("P4"). type("P4","player"). nationality("P4","CANADA").',
-        'id("P5"). type("P5","player"). nationality("P5","USA").',
-        'id("P6"). type("P6","player"). nationality("P6","USA").',
-        'id("D"). type("D","card"). has_card("P4","D"). position("D","C"). ovr("D",84). salary("D",200). team("D","VGK"). card_type("D","CAP").',
-        'id("E"). type("E","card"). has_card("P5","E"). position("E","LW"). ovr("E",83). salary("E",200). team("E","VGK"). card_type("E","CAP").',
-        'id("F"). type("F","card"). has_card("P6","F"). position("F","RW"). ovr("F",82). salary("F",200). team("F","VGK"). card_type("F","CAP").',
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","MDA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","LW").
+        ovr("K000004", 87).
+        salary("K000004", 70).
+        team("K000004","GHI").
+        card_type("K000004","SPOT").
 
-        # SAL boost for BOS line
-        f'forward_combo("sal_bos",{boost},"SAL",club("BOS"),club("BOS"),club("BOS")).',
+        id("P000004").
+        type("P000004", "player").
+        nationality("P000004","MDA").
+        id("K000005").
+        type("K000005","card").
+        has_card("P000004","K000005").
+        position("K000005","LW").
+        ovr("K000005", 86).
+        salary("K000005", 65).
+        team("K000005","SJS").
+        card_type("K000005","BASE").
 
-        # Show feasible and chosen SAL picks
-        "#show forward_line_sal_combination/3.",
-        "#show best_forward_line_sal_combination/3.",
-    ]
-    extra = BASE + "\n".join(facts)
-    files = ["src/asp/fwd_sal_description.lp", "src/asp/main_description.lp"]
+        forward_combo(19, 1, "OVR", event("SPOT"), club("SJS"), event("ICON")).
+
+        #show best_forward_line_ovr_combination/3.
+    '''
     res, models = solve(
-        files,
+        ["./src/asp/main_description.lp", "./src/asp/fwd_ovr_description.lp"],
         extra_rules=extra,
-        consts={"salary_cap": cap, "w_sal": 1},
+        consts={"w_ovr": 3},
         ctl_opts=["--opt-mode=optN"]
     )
     assert res.satisfiable
 
-    feasible = {
-        tuple(sorted(map(sym_to_str, s.arguments)))
-        for s in shown(models, "forward_line_sal_combination")
-    }
-    chosen = {
-        tuple(sorted(map(sym_to_str, s.arguments)))
-        for s in shown(models, "best_forward_line_sal_combination")
-    }
-    # accumulation behavior:
-    assert chosen == feasible
-
-    # respect cap (vacuously true if no picks)
-    sal = {"A":400, "B":350, "C":300, "D":200, "E":200, "F":200}
-    for A, B, C in chosen:
-        total = sal[A] + sal[B] + sal[C]
-        assert total <= cap + boost * 1  # w_sal=1 via consts
-
-
-# ------------------ fwd_ovr_description.lp ------------------
-
-def test_fwd_ovr_description_accumulates_all_feasible():
-    """
-    Property: best_forward_line_ovr_combination/3 equals forward_line_ovr_combination/3
-    (accumulation, not single-argmax), given your maximize form.
-    """
-    facts = [
-        # High OVR BOS triple (TOTW+COM+COM)
-        'id("P1"). type("P1","player"). nationality("P1","CANADA").',
-        'id("P2"). type("P2","player"). nationality("P2","USA").',
-        'id("P3"). type("P3","player"). nationality("P3","USA").',
-        'id("H"). type("H","card"). has_card("P1","H"). position("H","C"). ovr("H",92). salary("H",10). team("H","BOS"). card_type("H","TOTW").',
-        'id("I"). type("I","card"). has_card("P2","I"). position("I","LW"). ovr("I",91). salary("I",10). team("I","BOS"). card_type("I","COM").',
-        'id("J"). type("J","card"). has_card("P3","J"). position("J","RW"). ovr("J",90). salary("J",10). team("J","BOS"). card_type("J","COM").',
-
-        # Lower OVR BOS triple (COM+COM+COM)
-        'id("P4"). type("P4","player"). nationality("P4","CANADA").',
-        'id("P5"). type("P5","player"). nationality("P5","USA").',
-        'id("P6"). type("P6","player"). nationality("P6","USA").',
-        'id("K"). type("K","card"). has_card("P4","K"). position("K","C"). ovr("K",85). salary("K",10). team("K","BOS"). card_type("K","COM").',
-        'id("L"). type("L","card"). has_card("P5","L"). position("L","LW"). ovr("L",84). salary("L",10). team("L","BOS"). card_type("L","COM").',
-        'id("M"). type("M","card"). has_card("P6","M"). position("M","RW"). ovr("M",83). salary("M",10). team("M","BOS"). card_type("M","COM").',
-
-        # OVR boost enabled by TOTW+COM+COM (affects only the first triple)
-        'forward_combo("ovr_rule",3,"OVR",event("TOTW"),event("COM"),event("COM")).',
-
-        # Show feasible & chosen
-        "#show forward_line_ovr_combination/3.",
-        "#show best_forward_line_ovr_combination/3."
-    ]
-    extra = BASE + "\n".join(facts)
-    files = ["src/asp/fwd_ovr_description.lp", "src/asp/main_description.lp"]
-    res, models = solve(files, extra_rules=extra, ctl_opts=["--opt-mode=optN"])
-    assert res.satisfiable
-
-    feasible = {
-        tuple(sorted(map(sym_to_str, s.arguments)))
-        for s in shown(models, "forward_line_ovr_combination")
-    }
-    chosen = {
-        tuple(sorted(map(sym_to_str, s.arguments)))
+    got = {
+        tuple(map(sym_to_str, s.arguments))
         for s in shown(models, "best_forward_line_ovr_combination")
     }
-    assert chosen == feasible
-
-
-# ------------------ def_ovr_description.lp ------------------
-
-def test_def_ovr_description_accumulates_all_feasible():
-    """
-    Property: best_defense_line_ovr_combination/2 equals defense_line_ovr_combination/2
-    (accumulation behavior).
-    """
-    facts = [
-        'id("PA"). type("PA","player"). nationality("PA","CANADA").',
-        'id("PB"). type("PB","player"). nationality("PB","USA").',
-        'id("PC"). type("PC","player"). nationality("PC","CANADA").',
-        'id("PD"). type("PD","player"). nationality("PD","USA").',
-
-        'id("DL1"). type("DL1","card"). has_card("PA","DL1"). position("DL1","LD"). ovr("DL1",90). salary("DL1",10). team("DL1","TOR"). card_type("DL1","COM").',
-        'id("DR1"). type("DR1","card"). has_card("PB","DR1"). position("DR1","RD"). ovr("DR1",89). salary("DR1",10). team("DR1","TOR"). card_type("DR1","COM").',
-
-        'id("DL2"). type("DL2","card"). has_card("PC","DL2"). position("DL2","LD"). ovr("DL2",85). salary("DL2",10). team("DL2","DET"). card_type("DL2","COM").',
-        'id("DR2"). type("DR2","card"). has_card("PD","DR2"). position("DR2","RD"). ovr("DR2",84). salary("DR2",10). team("DR2","DET"). card_type("DR2","COM").',
-
-        'defense_combo("ovr_any",4,"OVR",event("COM"),event("COM")).',
-        "#show defense_line_ovr_combination/2.",
-        "#show best_defense_line_ovr_combination/2."
-    ]
-    extra = BASE + "\n".join(facts)
-    files = ["src/asp/def_ovr_description.lp", "src/asp/main_description.lp"]
-    res, models = solve(files, extra_rules=extra, ctl_opts=["--opt-mode=optN"])
-    assert res.satisfiable
-
-    feasible = {
-        norm_pair(*s.arguments)
-        for s in shown(models, "defense_line_ovr_combination")
+    expected = {
+        ('"K000003"','"K000004"','"K000005"'),
+        ('"K000001"','"K000003"','"K000004"'),
+        ('"K000001"','"K000004"','"K000005"'),
+        ('"K000001"','"K000003"','"K000005"'),
     }
-    chosen = {
-        norm_pair(*s.arguments)
-        for s in shown(models, "best_defense_line_ovr_combination")
-    }
-    assert chosen == feasible
+    assert got == expected
 
+def test_def_ovr_description_show_optimal_top_results():
+    extra = r'''
+        event("SPOT"; "ICON"; "BASE";"NG").
+        club("SJS"; "ABC"; "GHI").
+        country("ROU"; "HUN"; "MDA"; "CZECHIA").
 
-# ------------------ def_sal_description.lp ------------------
+        id("P000001").
+        type("P000001", "player").
+        nationality("P000001","ROU").
+        id("K000001").
+        type("K000001","card").
+        has_card("P000001","K000001").
+        position("K000001", "RD").
+        ovr("K000001", 90).
+        salary("K000001", 100).
+        team("K000001","ABC").
+        card_type("K000001","BASE").
 
-@pytest.mark.parametrize("cap,boost", [(700, 0), (800, 100)])
-def test_def_sal_description_cap_respected(cap, boost):
-    """
-    Property: Every best_defense_line_sal_combination/2 satisfies the cap:
-      salary(A)+salary(B) <= salary_cap + boost*w_sal
-    And, as with other files, chosen == feasible under your accumulation maximize.
-    """
-    facts = [
-        'id("PG1"). type("PG1","player"). nationality("PG1","CANADA").',
-        'id("PG2"). type("PG2","player"). nationality("PG2","USA").',
-        'id("PG3"). type("PG3","player"). nationality("PG3","CANADA").',
-        'id("PG4"). type("PG4","player"). nationality("PG4","USA").',
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","CZECHIA").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "LD").
+        ovr("K000003", 88).
+        salary("K000003", 80).
+        team("K000003","ABC").
+        card_type("K000003","ICON").
 
-        'id("G1"). type("G1","card"). has_card("PG1","G1"). position("G1","LD"). ovr("G1",86). salary("G1",600). team("G1","TOR"). card_type("G1","COM").',
-        'id("G2"). type("G2","card"). has_card("PG2","G2"). position("G2","RD"). ovr("G2",450). salary("G2",450). team("G2","DET"). card_type("G2","COM").',
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","MDA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","RD").
+        ovr("K000004", 87).
+        salary("K000004", 70).
+        team("K000004","GHI").
+        card_type("K000004","NG").
 
-        'id("G3"). type("G3","card"). has_card("PG3","G3"). position("G3","LD"). ovr("G3",80). salary("G3",200). team("G3","DET"). card_type("G3","COM").',
-        'id("G4"). type("G4","card"). has_card("PG4","G4"). position("G4","RD"). ovr("G4",80). salary("G4",200). team("G4","DET"). card_type("G4","COM").',
+        id("P000004").
+        type("P000004", "player").
+        nationality("P000004","MDA").
+        id("K000005").
+        type("K000005","card").
+        has_card("P000004","K000005").
+        position("K000005","LD").
+        ovr("K000005", 86).
+        salary("K000005", 65).
+        team("K000005","SJS").
+        card_type("K000005","BASE").
 
-        f'defense_combo("sal_det",{boost},"SAL",club("DET"),club("DET")).',
-        "#show defense_line_sal_combination/2.",
-        "#show best_defense_line_sal_combination/2."
-    ]
-    extra = BASE + "\n".join(facts)
-    files = ["src/asp/def_sal_description.lp", "src/asp/main_description.lp"]
+        defense_combo(12, 1, "OVR", event("NG"), country("CZECHIA")).
+
+        #show best_defense_line_ovr_combination/2.
+    '''
     res, models = solve(
-        files,
+        ["./src/asp/main_description.lp", "./src/asp/def_ovr_description.lp"],
         extra_rules=extra,
-        consts={"salary_cap": cap, "w_sal": 1},
+        consts={"w_ovr": 3},
         ctl_opts=["--opt-mode=optN"]
     )
     assert res.satisfiable
 
-    feasible = {
-        norm_pair(*s.arguments)
-        for s in shown(models, "defense_line_sal_combination")
+    got = {
+        tuple(map(sym_to_str, s.arguments))
+        for s in shown(models, "best_defense_line_ovr_combination")
     }
-    chosen = {
-        norm_pair(*s.arguments)
+    expected = {
+        ('"K000003"','"K000004"'),
+        ('"K000001"','"K000003"'),
+        ('"K000001"','"K000004"'),
+        ('"K000001"','"K000005"'),
+        ('"K000003"','"K000005"'),
+        ('"K000004"','"K000005"'),
+    }
+    assert got == expected
+
+def test_fwd_sal_description_salary_cap_test_without_boost():
+    extra = r'''
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","HUN").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "RW").
+        ovr("K000003", 80).
+        salary("K000003", 40).
+        team("K000003","DEF").
+        card_type("K000003","BASE").
+
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","MDA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","LW").
+        ovr("K000004", 75).
+        salary("K000004", 30).
+        team("K000004","GHI").
+        card_type("K000004","BASE").
+
+        id("P000004").
+        type("P000004", "player").
+        nationality("P000004","MDA").
+        id("K000005").
+        type("K000005","card").
+        has_card("P000004","K000005").
+        position("K000005","LW").
+        ovr("K000005", 70).
+        salary("K000005", 20).
+        team("K000005","GHI").
+        card_type("K000005","BASE").
+
+        id("P000005").
+        type("P000005", "player").
+        nationality("P000005","MDA").
+        id("K000006").
+        type("K000006","card").
+        has_card("P000005","K000006").
+        position("K000006","LW").
+        ovr("K000006", 65).
+        salary("K000006", 10).
+        team("K000006","GHI").
+        card_type("K000006","BASE").
+
+        #show best_forward_line_sal_combination/3.'''
+    
+    res, models = solve(
+        ["./src/asp/main_description.lp", "./src/asp/fwd_sal_description.lp"],
+        extra_rules=extra,
+        consts={"salary_cap": 80},
+        ctl_opts=["--opt-mode=optN"]
+    )
+    assert res.satisfiable
+
+    got = {
+        tuple(map(sym_to_str, s.arguments))
+        for s in shown(models, "best_forward_line_sal_combination")
+    }
+    expected = {
+        ('"K000003"','"K000004"','"K000006"'),
+        ('"K000003"','"K000005"','"K000006"'),
+        ('"K000004"','"K000005"','"K000006"'),
+    }
+    assert got == expected
+
+def test_def_sal_description_salary_cap_test_without_boost():
+    extra = r'''
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","HUN").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "LD").
+        ovr("K000003", 80).
+        salary("K000003", 40).
+        team("K000003","DEF").
+        card_type("K000003","BASE").
+
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","MDA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","RD").
+        ovr("K000004", 75).
+        salary("K000004", 30).
+        team("K000004","GHI").
+        card_type("K000004","BASE").
+
+        id("P000004").
+        type("P000004", "player").
+        nationality("P000004","MDA").
+        id("K000005").
+        type("K000005","card").
+        has_card("P000004","K000005").
+        position("K000005","RD").
+        ovr("K000005", 70).
+        salary("K000005", 20).
+        team("K000005","GHI").
+        card_type("K000005","BASE").
+
+        #show best_defense_line_sal_combination/2.'''
+    
+    res, models = solve(
+        ["./src/asp/main_description.lp", "./src/asp/def_sal_description.lp"],
+        extra_rules=extra,
+        consts={"salary_cap": 60},
+        ctl_opts=["--opt-mode=optN"]
+    )
+    assert res.satisfiable
+
+    got = {
+        tuple(map(sym_to_str, s.arguments))
         for s in shown(models, "best_defense_line_sal_combination")
     }
-    assert chosen == feasible
+    expected = {
+        ('"K000003"','"K000005"'),
+        ('"K000004"','"K000005"'),
+    }
+    assert got == expected
 
-    sal = {"G1":600, "G2":450, "G3":200, "G4":200}
-    for A, B in chosen:
-        total = sal[A] + sal[B]
-        assert total <= cap + boost * 1  # w_sal=1
+def test_fwd_sal_description_salary_cap_test_with_boost():
+    extra = r'''
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","USA").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "RW").
+        ovr("K000003", 80).
+        salary("K000003", 40).
+        team("K000003","DEF").
+        card_type("K000003","BASE").
+
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","USA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","LW").
+        ovr("K000004", 75).
+        salary("K000004", 30).
+        team("K000004","GHI").
+        card_type("K000004","BASE").
+
+        id("P000004").
+        type("P000004", "player").
+        nationality("P000004","USA").
+        id("K000005").
+        type("K000005","card").
+        has_card("P000004","K000005").
+        position("K000005","LW").
+        ovr("K000005", 70).
+        salary("K000005", 20).
+        team("K000005","GHI").
+        card_type("K000005","BASE").
+
+        id("P000005").
+        type("P000005", "player").
+        nationality("P000005","USA").
+        id("K000006").
+        type("K000006","card").
+        has_card("P000005","K000006").
+        position("K000006","LW").
+        ovr("K000006", 65).
+        salary("K000006", 10).
+        team("K000006","GHI").
+        card_type("K000006","BASE").
+
+        forward_combo(22, 7, "SAL", country("USA"), country("USA"), country("USA")).
+
+        #show best_forward_line_sal_combination/3.'''
+    
+    res, models = solve(
+        ["./src/asp/main_description.lp", "./src/asp/fwd_sal_description.lp"],
+        extra_rules=extra,
+        consts={"salary_cap": 80, "w_sal": 2},
+        ctl_opts=["--opt-mode=optN"]
+    )
+    assert res.satisfiable
+
+    got = {
+        tuple(map(sym_to_str, s.arguments))
+        for s in shown(models, "best_forward_line_sal_combination")
+    }
+    expected = {
+        ('"K000003"','"K000004"','"K000005"'),
+        ('"K000003"','"K000004"','"K000006"'),
+        ('"K000003"','"K000005"','"K000006"'),
+        ('"K000004"','"K000005"','"K000006"'),
+    }
+    assert got == expected
+
+def test_def_sal_description_salary_cap_test_with_boost():
+    extra = r'''
+        id("P000002").
+        type("P000002", "player").
+        nationality("P000002","USA").
+        id("K000003").
+        type("K000003","card").
+        has_card("P000002","K000003").
+        position("K000003", "LD").
+        ovr("K000003", 80).
+        salary("K000003", 40).
+        team("K000003","DEF").
+        card_type("K000003","BASE").
+
+        id("P000003").
+        type("P000003", "player").
+        nationality("P000003","CANADA").
+        id("K000004").
+        type("K000004","card").
+        has_card("P000003","K000004").
+        position("K000004","RD").
+        ovr("K000004", 75).
+        salary("K000004", 30).
+        team("K000004","GHI").
+        card_type("K000004","BASE").
+
+        id("P000004").
+        type("P000004", "player").
+        nationality("P000004","USA").
+        id("K000005").
+        type("K000005","card").
+        has_card("P000004","K000005").
+        position("K000005","RD").
+        ovr("K000005", 70).
+        salary("K000005", 20).
+        team("K000005","GHI").
+        card_type("K000005","BASE").
+
+        defense_combo(31, 10, "SAL", country("USA"), country("CANADA")).
+
+        #show best_defense_line_sal_combination/2.'''
+    
+    res, models = solve(
+        ["./src/asp/main_description.lp", "./src/asp/def_sal_description.lp"],
+        extra_rules=extra,
+        consts={"salary_cap": 60, "w_sal": 2},
+        ctl_opts=["--opt-mode=optN"]
+    )
+    assert res.satisfiable
+
+    got = {
+        tuple(map(sym_to_str, s.arguments))
+        for s in shown(models, "best_defense_line_sal_combination")
+    }
+    expected = {
+        ('"K000003"','"K000005"'),
+        ('"K000003"','"K000004"'),
+        ('"K000004"','"K000005"'),
+    }
+    assert got == expected
+
